@@ -50,14 +50,28 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.captions.R
 import app.captions.data.keys.ApiProvider
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    SettingsContent(
+        uiState = uiState,
+        onKeyChanged = viewModel::onKeyChanged,
+        onVerify = viewModel::onVerify,
+        onBack = onBack,
+    )
+}
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsContent(
+    uiState: SettingsUiState,
+    onKeyChanged: (ApiProvider, String) -> Unit,
+    onVerify: (ApiProvider) -> Unit,
+    onBack: () -> Unit,
+) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -92,16 +106,16 @@ fun SettingsScreen(
                     description = stringResource(R.string.settings_openrouter_desc),
                     hint = stringResource(R.string.settings_key_hint_openrouter),
                     state = uiState.openRouter,
-                    onTextChanged = { viewModel.onKeyChanged(ApiProvider.OPENROUTER, it) },
-                    onVerify = { viewModel.onVerify(ApiProvider.OPENROUTER) },
+                    onTextChanged = { onKeyChanged(ApiProvider.OPENROUTER, it) },
+                    onVerify = { onVerify(ApiProvider.OPENROUTER) },
                 )
                 ApiKeyCard(
                     title = stringResource(R.string.settings_elevenlabs_key),
                     description = stringResource(R.string.settings_elevenlabs_desc),
                     hint = stringResource(R.string.settings_key_hint_elevenlabs),
                     state = uiState.elevenLabs,
-                    onTextChanged = { viewModel.onKeyChanged(ApiProvider.ELEVENLABS, it) },
-                    onVerify = { viewModel.onVerify(ApiProvider.ELEVENLABS) },
+                    onTextChanged = { onKeyChanged(ApiProvider.ELEVENLABS, it) },
+                    onVerify = { onVerify(ApiProvider.ELEVENLABS) },
                 )
             }
         }
@@ -153,10 +167,10 @@ private fun ApiKeyCard(
             Spacer(Modifier.height(12.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                StatusIndicator(status = state.status)
+                StatusIndicator(status = state.status, modifier = Modifier.weight(1f))
+                Spacer(Modifier.width(8.dp))
                 Button(onClick = onVerify, enabled = state.status != KeyFieldStatus.VERIFYING) {
                     Text(stringResource(R.string.settings_verify))
                 }
@@ -166,7 +180,7 @@ private fun ApiKeyCard(
 }
 
 @Composable
-private fun StatusIndicator(status: KeyFieldStatus) {
+private fun StatusIndicator(status: KeyFieldStatus, modifier: Modifier = Modifier) {
     data class Display(val icon: ImageVector?, val textRes: Int?, val isError: Boolean)
 
     val display = when (status) {
@@ -183,7 +197,7 @@ private fun StatusIndicator(status: KeyFieldStatus) {
         if (display.isError) MaterialTheme.colorScheme.error
         else MaterialTheme.colorScheme.onSurfaceVariant
 
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
         if (status == KeyFieldStatus.VERIFYING) {
             CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
             Spacer(Modifier.width(8.dp))
