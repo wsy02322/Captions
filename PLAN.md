@@ -98,6 +98,23 @@
 - API Key：Android Keystore AES 加密后存 DataStore；所有请求头 `Authorization: Bearer <key>`，附 `HTTP-Referer`/`X-Title` 标识应用。
 - 失败片段落盘保留原始音频（临时目录），支持手动重试，避免丢内容。
 
+### 4.5 OpenRouter 之外的专业 STT（评估结论与可选扩展）
+
+专业 STT 厂商在两个硬指标上优于 LLM 路径：**声学级 diarization**（基于声纹/音色，实测明显强于 LLM 按语义分离）和**真流式**（WebSocket 逐词返回，延迟 0.1–0.5 s，而分块 LLM 路径固有 15–30 s 延迟）。2026-07 值得关注的选项：
+
+| 厂商/模型 | 强项 | diarization | 语言 | 参考价 |
+| --- | --- | --- | --- | --- |
+| **ElevenLabs Scribe v2 / v2 Realtime** | Artificial Analysis AA-WER 榜第一梯队（批量 ~2.2%，流式 ~3.6% + 0.14s）；自动语种检测、句中切换 | 内置，最多 32 说话人 | 90+ | ~$0.22/h 批量，~$0.39/h 流式 |
+| **AssemblyAI Universal-3 Pro** | 流式+批量都带 diarization；keyterm prompting（1500 词）与本应用词表功能天然契合 | 内置，流式可用 | ~99（U2） | $0.21/h 批量，$0.45/h 流式 |
+| **Speechmatics Ursa 3** | 双语 code-switching 语言包（ZH-EN 等）业界最强；口音鲁棒；实测 2 人对话 diarization ~94% | 内置，不另收费 | 55+ | 中等偏高 |
+| Deepgram Nova-3 / Flux | 延迟最低（~0.02–0.28 s）、英语嘈杂电话音频最强 | 附加功能 | 36+ | ~$0.35/h |
+| Soniox Realtime | 最便宜（~$0.12/h）多语言流式+diarization | 内置 | 60+ | 流式 WER 偏高（~12%） |
+
+**决策**：
+1. **默认仍走 OpenRouter 单 Key**（产品前提），Gemini 3.1 Pro 的转写准确率本身在第一梯队，且上下文/词表注入是专业 STT（除 AssemblyAI keyterm 外）不具备的。
+2. 转写层抽象为 `TranscriptionProvider` 接口，OpenRouter 为默认实现；M7 之后可增加 **ElevenLabs Scribe**（准确率+diarization 综合最强）与 **AssemblyAI**（流式 diarization + keyterm）作为可选 Provider，用户填对应厂商 Key 即启用。
+3. 远期最优形态是**混合管线**：专业 STT 出词级时间戳+声学 diarization（快、准、稳定 ID），OpenRouter LLM 做词表纠错+翻译——兼得两者优势，接口设计预留该组合。
+
 ## 5. 多说话人与多语言
 
 - **说话人分离（必选）**：由多模态模型完成 diarization——系统提示词要求按声纹/语气区分说话人并输出稳定整数 ID；每个新分块的提示词携带「已知说话人声音描述」（说话人 1: 男声、低沉、说中文…由模型自己在上一块生成）以保持跨块一致。
