@@ -113,22 +113,59 @@
 - API Key：Android Keystore AES 加密后存 DataStore；所有请求头 `Authorization: Bearer <key>`，附 `HTTP-Referer`/`X-Title` 标识应用。
 - 失败片段落盘保留原始音频（临时目录），支持手动重试，避免丢内容。
 
-### 4.5 OpenRouter 之外的专业 STT（评估结论与可选扩展）
+### 4.5 转写模型对比与成本重评（本 use case，2026-07）
 
-专业 STT 厂商在两个硬指标上优于 LLM 路径：**声学级 diarization**（基于声纹/音色，实测明显强于 LLM 按语义分离）和**真流式**（WebSocket 逐词返回，延迟 0.1–0.5 s，而分块 LLM 路径固有 15–30 s 延迟）。2026-07 值得关注的选项：
+**硬性筛选**：必须声学级 diarization（说话人仅用颜色区分）、多语言、准确率优先。OpenRouter 专用 STT 端点（Whisper / GPT-4o Transcribe / Chirp-3 / Qwen3-ASR 等）**全部因无 diarization 直接淘汰**，不参与默认选型。
 
-| 厂商/模型 | 强项 | diarization | 语言 | 参考价 |
-| --- | --- | --- | --- | --- |
-| **ElevenLabs Scribe v2 / v2 Realtime** | Artificial Analysis AA-WER 榜第一梯队（批量 ~2.2%，流式 ~3.6% + 0.14s）；自动语种检测、句中切换 | 批量内置，最多 48 说话人（Realtime 暂无） | 90+（批量 99） | ~$0.22/h 批量，~$0.39/h 流式 |
-| **AssemblyAI Universal-3 Pro** | 流式+批量都带 diarization；keyterm prompting（1500 词）与本应用词表功能天然契合 | 内置，流式可用 | ~99（U2） | $0.21/h 批量，$0.45/h 流式 |
-| **Speechmatics Ursa 3** | 双语 code-switching 语言包（ZH-EN 等）业界最强；口音鲁棒；实测 2 人对话 diarization ~94% | 内置，不另收费 | 55+ | 中等偏高 |
-| Deepgram Nova-3 / Flux | 延迟最低（~0.02–0.28 s）、英语嘈杂电话音频最强 | 附加功能 | 36+ | ~$0.35/h |
-| Soniox Realtime | 最便宜（~$0.12/h）多语言流式+diarization | 内置 | 60+ | 流式 WER 偏高（~12%） |
+**计费口径**：官方价（ElevenLabs / AssemblyAI / Deepgram 官网；OpenRouter `/models` API 实测）。本应用默认走 VAD 分块（15–30s，1–2s 重叠）→ 批量路径按 **×1.075** 计入重叠开销；流式路径按会话时长计（无重叠）。词表按「开启 keyterms」计（本应用有词表功能）。
 
-**决策（已采纳双 Key 方案）**：
-1. **ElevenLabs Scribe v2 为一等默认转写 Provider**（准确率 + 声学 diarization 综合最强，见 §4.1 Provider A），用户填 ElevenLabs Key 即启用；未填时回退 OpenRouter 多模态路径。
-2. 混合管线为默认形态：Scribe 出词级时间戳 + 声学 diarization，OpenRouter LLM 做词表纠错 + 翻译。
-3. AssemblyAI（流式 diarization + keyterm）与 Speechmatics（code-switching 最强）保留为后续可选 Provider，`TranscriptionProvider` 接口天然支持扩展。
+#### 合格模型：有效成本（$/音频小时）
+
+| 模型 | 基价 | diarization | keyterms | 合计 | 有效（含重叠） | 模式 | 对本场景 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| **ElevenLabs Scribe v2** | $0.22 | **含** | +$0.05 | $0.27 | **$0.29** | 分块批量 | **默认首选**：准确率第一梯队 + diar 含价 + 99 语 |
+| ElevenLabs Scribe v2（关词表） | $0.22 | 含 | — | $0.22 | $0.24 | 分块批量 | 无词表时更便宜 |
+| AssemblyAI U3.5 Pro async | $0.21 | +$0.02 | +$0.05 | $0.28 | **$0.30** | 分块批量 | 与 Scribe 几乎同价；词表上限更高（1000） |
+| AssemblyAI U3.5 Pro async + 实验 diar | $0.21 | +$0.065 | +$0.05 | $0.325 | $0.35 | 分块批量 | 多人/难音频时用 |
+| Speechmatics Pro（公开价约） | ~$0.24 | **含** | — | ~$0.24 | ~$0.24 | 批量/流式 | **ZH-EN code-switch 最强**；价目不透明 |
+| OpenRouter Gemini 3.5 Flash（LLM 音频） | ~$0.35 | 语义级 | 提示词 | ~$0.35 | ~$0.38 | 分块批量 | 单 Key 回退·均衡 |
+| OpenRouter Gemini 3.1 Pro（LLM 音频） | ~$0.47 | 语义级 | 提示词 | ~$0.47 | ~$0.51 | 分块批量 | 单 Key 回退·最高准确率 |
+| **AssemblyAI U3.5 Pro Realtime + 流式 diar** | $0.45 | +$0.12 | 含 | **$0.57** | $0.57 | **真流式** | **唯一「边说边着色」路径**；约 2× 批量价 |
+| Deepgram Nova-3 multi + diar + kt（预录） | $0.35 | +$0.12 | +$0.08 | $0.55 | $0.59 | 分块批量 | 贵近 2×；多语言弱于前三 |
+| Deepgram Nova-3 multi + diar + kt（流式） | $0.55 | +$0.12 | +$0.08 | $0.75 | $0.75 | 流式 | 延迟最低，但贵且偏英语 |
+| ElevenLabs Scribe v2 Realtime | $0.39 | **无** | — | — | — | 流式 | **单独使用不合格**；仅作灰色预览字幕 |
+
+#### 月成本粗算（仅转写，含词表）
+
+| 用量 | Scribe v2 | AssemblyAI async | AssemblyAI 流式+diar | Gemini 3.1 Pro 回退 | Deepgram multi 流式 |
+| --- | --- | --- | --- | --- | --- |
+| 20 h/月（轻度） | **~$6** | ~$6 | ~$11 | ~$10 | ~$15 |
+| 60 h/月（中度） | **~$17** | ~$18 | ~$34 | ~$30 | ~$45 |
+
+翻译另计 OpenRouter 文本模型（默认 Gemini 3.1 Pro，按 token；典型字幕会话远低于转写成本）。
+
+#### 能力对照（本场景权重）
+
+| 维度（权重） | Scribe v2 | AssemblyAI U3.5 | Speechmatics | Deepgram Nova-3 | Gemini LLM |
+| --- | --- | --- | --- | --- | --- |
+| 转写准确率（高） | ★★★★★ | ★★★★☆ | ★★★★☆ | ★★★★☆（英强） | ★★★★☆ |
+| 声学 diarization（硬性） | ★★★★★（含价，≤48） | ★★★★★（流式也有） | ★★★★★（含价） | ★★★★☆（+$0.12/h） | ★★☆☆☆（语义） |
+| 多语言 / code-switch（高） | ★★★★★（99） | ★★★★★（99+） | ★★★★★（ZH-EN 包） | ★★★☆☆（~45） | ★★★★☆ |
+| 真流式着色字幕（中） | ✗（Realtime 无 diar） | ★★★★★ | ★★★★☆ | ★★★★☆ | ✗ |
+| 词表注入（中） | ★★★★（+$0.05） | ★★★★★（流式含） | ★★★☆☆ | ★★★★（+$0.08） | ★★★★★（提示词） |
+| 有效成本（中） | ★★★★★ | ★★★★★ | ★★★★★ | ★★☆☆☆ | ★★★☆☆ |
+| 单 Key 体验（低） | 需第二 Key | 需第二 Key | 需第二 Key | 需第二 Key | ★★★★★ |
+
+#### 重评结论（相对原方案微调，默认不变）
+
+1. **默认仍为 ElevenLabs Scribe v2 分块批量**（~$0.29/h 含词表）：在「必须 diarization + 多语言 + 准确率」约束下，性价比最优；Realtime **不能**单独做默认（无 diar）。
+2. **AssemblyAI 从「远期可选」升为「一等并列候选」**：async 路径与 Scribe 价差可忽略（$0.30 vs $0.29）；**流式+diar（$0.57/h）是目前唯一能边说边按说话人着色的成熟方案**，适合 M7 做「低延迟着色」档位（约 2× 成本换实时体验）。
+3. **Speechmatics** 在中英混说场景可作专用 Provider；公开价约与 Scribe 同档，但计费档位不透明，暂不默认。
+4. **Deepgram** 在本场景性价比差（diar+词表后接近流式 AssemblyAI 的价，多语言又弱），仅作英语嘈杂音频的备选，不进默认档。
+5. **OpenRouter LLM 音频** 继续作无 ElevenLabs/AssemblyAI Key 时的回退；比专业 STT 贵约 1.3–1.7×，且 diarization 明显更弱——单 Key 便利的代价。
+6. **OpenRouter `/audio/transcriptions`（Whisper 等）** 维持隐藏降级，启用前警告失去说话人颜色区分。
+
+**Provider 落地优先级**：M2 = Scribe v2；M4 = OpenRouter 回退；M7 = AssemblyAI 流式 diar（可选第三 Key 或设置页切换）+ Scribe Realtime 灰色预览。
 
 ## 5. 多说话人与多语言
 
@@ -185,7 +222,7 @@ Kotlin 2.x · Jetpack Compose + Material 3 · Hilt · Room · DataStore · OkHtt
 | M4 说话人与回退路径 | 跨块说话人 ID 对齐（重叠词对齐 + 嵌入聚类）、颜色映射、OpenRouter 多模态回退 Provider（含说话人描述传递） | 多说话人音频中不同说话人以稳定且不同的颜色呈现（无文字标签）；拔掉 ElevenLabs Key 后回退路径可用 |
 | M5 翻译管线 | 逐段翻译、滚动上下文、术语表、词表纠错 pass、精修 pass | 双语实时显示，译文术语一致 |
 | M6 存储与导出 | Room 会话持久化、历史页、TXT/SRT/JSON 导出 | 重启后会话可回看、可导出 |
-| M7 打磨 | 悬浮字幕窗、Scribe Realtime 灰色预览字幕、准确率档位、词表 UI、错误恢复、评估脚本 | WER/BLEU 回归基线建立 |
+| M7 打磨 | 悬浮字幕窗、AssemblyAI 流式 diar 可选 Provider（边说边着色）、Scribe Realtime 灰色预览、准确率档位、词表 UI、错误恢复、评估脚本 | WER/BLEU 回归基线建立；流式着色档位可用 |
 
 每个里程碑：单元测试（分段器、重叠合并、队列重试、API 解析用 MockWebServer）+ 模拟器手动验证（麦克风用虚拟音频输入，播放捕获用模拟器内播放测试音频）。
 
