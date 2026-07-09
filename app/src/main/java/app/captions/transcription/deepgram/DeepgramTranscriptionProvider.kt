@@ -48,7 +48,6 @@ class DeepgramTranscriptionProvider @Inject constructor(
             .addQueryParameter("punctuate", "true")
             .addQueryParameter("smart_format", "true")
             .addQueryParameter("diarize", "true")
-            .addQueryParameter("diarize_model", "latest")
             .addQueryParameter("utterance_end_ms", "1200")
             .addQueryParameter("vad_events", "true")
             .build()
