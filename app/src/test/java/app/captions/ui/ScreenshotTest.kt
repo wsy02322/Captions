@@ -33,6 +33,7 @@ class ScreenshotTest {
                     uiState = HomeUiState(
                         loaded = true,
                         hasOpenRouterKey = true,
+                        hasDeepgramKey = true,
                         hasElevenLabsKey = true,
                     ),
                     onOpenSettings = {},
@@ -68,6 +69,10 @@ class ScreenshotTest {
                             text = "sk-or-v1-0123456789abcdef",
                             status = KeyFieldStatus.VALID,
                         ),
+                        deepgram = KeyFieldState(
+                            text = "dg-valid-key",
+                            status = KeyFieldStatus.VALID,
+                        ),
                         elevenLabs = KeyFieldState(
                             text = "xi-bad-key",
                             status = KeyFieldStatus.INVALID,
@@ -93,6 +98,10 @@ class ScreenshotTest {
                         openRouter = KeyFieldState(
                             text = "sk-or-v1-0123456789abcdef",
                             status = KeyFieldStatus.NETWORK_ERROR,
+                        ),
+                        deepgram = KeyFieldState(
+                            text = "",
+                            status = KeyFieldStatus.IDLE,
                         ),
                         elevenLabs = KeyFieldState(
                             text = "",

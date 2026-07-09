@@ -14,9 +14,11 @@ import javax.inject.Inject
 data class HomeUiState(
     val loaded: Boolean = false,
     val hasOpenRouterKey: Boolean = false,
+    val hasDeepgramKey: Boolean = false,
     val hasElevenLabsKey: Boolean = false,
 ) {
-    val ready: Boolean get() = hasOpenRouterKey
+    val canStartLive: Boolean get() = hasDeepgramKey
+    val ready: Boolean get() = hasOpenRouterKey || hasDeepgramKey
 }
 
 @HiltViewModel
@@ -27,11 +29,13 @@ class HomeViewModel @Inject constructor(
     val uiState: StateFlow<HomeUiState> =
         combine(
             repository.key(ApiProvider.OPENROUTER),
+            repository.key(ApiProvider.DEEPGRAM),
             repository.key(ApiProvider.ELEVENLABS),
-        ) { openRouter, elevenLabs ->
+        ) { openRouter, deepgram, elevenLabs ->
             HomeUiState(
                 loaded = true,
                 hasOpenRouterKey = !openRouter.isNullOrBlank(),
+                hasDeepgramKey = !deepgram.isNullOrBlank(),
                 hasElevenLabsKey = !elevenLabs.isNullOrBlank(),
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())

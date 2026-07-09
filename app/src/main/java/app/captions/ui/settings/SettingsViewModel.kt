@@ -25,6 +25,7 @@ data class KeyFieldState(
 data class SettingsUiState(
     val loaded: Boolean = false,
     val openRouter: KeyFieldState = KeyFieldState(),
+    val deepgram: KeyFieldState = KeyFieldState(),
     val elevenLabs: KeyFieldState = KeyFieldState(),
 )
 
@@ -42,11 +43,13 @@ class SettingsViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             val openRouter = repository.key(ApiProvider.OPENROUTER).first().orEmpty()
+            val deepgram = repository.key(ApiProvider.DEEPGRAM).first().orEmpty()
             val elevenLabs = repository.key(ApiProvider.ELEVENLABS).first().orEmpty()
             _uiState.update {
                 it.copy(
                     loaded = true,
                     openRouter = KeyFieldState(openRouter),
+                    deepgram = KeyFieldState(deepgram),
                     elevenLabs = KeyFieldState(elevenLabs),
                 )
             }
@@ -88,6 +91,7 @@ class SettingsViewModel @Inject constructor(
 
     private fun fieldFor(provider: ApiProvider): KeyFieldState = when (provider) {
         ApiProvider.OPENROUTER -> _uiState.value.openRouter
+        ApiProvider.DEEPGRAM -> _uiState.value.deepgram
         ApiProvider.ELEVENLABS -> _uiState.value.elevenLabs
     }
 
@@ -95,6 +99,7 @@ class SettingsViewModel @Inject constructor(
         _uiState.update { state ->
             when (provider) {
                 ApiProvider.OPENROUTER -> state.copy(openRouter = transform(state.openRouter))
+                ApiProvider.DEEPGRAM -> state.copy(deepgram = transform(state.deepgram))
                 ApiProvider.ELEVENLABS -> state.copy(elevenLabs = transform(state.elevenLabs))
             }
         }

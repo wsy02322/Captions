@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -31,10 +32,15 @@ import app.captions.R
 @Composable
 fun HomeScreen(
     onOpenSettings: () -> Unit,
+    onOpenLive: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    HomeContent(uiState = uiState, onOpenSettings = onOpenSettings)
+    HomeContent(
+        uiState = uiState,
+        onOpenSettings = onOpenSettings,
+        onOpenLive = onOpenLive,
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -42,6 +48,7 @@ fun HomeScreen(
 fun HomeContent(
     uiState: HomeUiState,
     onOpenSettings: () -> Unit,
+    onOpenLive: () -> Unit = {},
 ) {
     Scaffold(
         topBar = {
@@ -82,12 +89,23 @@ fun HomeContent(
                 OutlinedCard(modifier = Modifier.fillMaxWidth()) {
                     Text(
                         text = stringResource(
-                            if (uiState.ready) R.string.home_ready
-                            else R.string.home_setup_needed
+                            when {
+                                uiState.canStartLive -> R.string.home_ready
+                                uiState.hasOpenRouterKey -> R.string.home_need_deepgram
+                                else -> R.string.home_setup_needed
+                            },
                         ),
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(16.dp),
                     )
+                }
+                Spacer(Modifier.height(16.dp))
+                Button(
+                    onClick = onOpenLive,
+                    enabled = uiState.canStartLive,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.start_live))
                 }
             }
         }
