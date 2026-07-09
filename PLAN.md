@@ -5,8 +5,8 @@
 | 需求 | 方案要点 |
 | --- | --- |
 | Android 12+（minSdk 31） | Kotlin + Jetpack Compose，targetSdk 最新版 |
-| 转写 + 翻译 | 两阶段管线：音频 → 转写 → 翻译；转写支持双 Provider（ElevenLabs / OpenRouter），翻译走 OpenRouter |
-| 双 API Key 驱动 | OpenRouter Key（必填：翻译 + 转写回退）+ ElevenLabs Key（推荐：最强转写与声学 diarization）；均 Keystore 加密存储；模型可自由选择 |
+| 转写 + 翻译 | 两阶段管线：音频 → 转写 → 翻译；转写支持多 Provider（Deepgram / ElevenLabs / OpenRouter），翻译走 OpenRouter |
+| 多 API Key 驱动 | OpenRouter Key（必填）+ Deepgram Key（有免费额度时优先）+ ElevenLabs Key（产品出厂推荐）；均 Keystore 加密存储 |
 | 多语言 | 自动语种检测或手动指定源语言；目标语言任选；支持混合语言音频 |
 | 多说话人（硬性要求） | 说话人分离为必选能力；UI **仅用颜色区分说话人，不显示任何文字标签**；内部用稳定 ID 跟踪并映射到固定颜色 |
 | 准确率最高优先 | 见 §6「准确率策略」——模型选择、上下文注入、重叠分块、精修 pass 均围绕此设计 |
@@ -18,8 +18,8 @@
 ┌─ ForegroundService（mediaProjection|microphone 类型）─────────────┐
 │  AudioCaptureEngine（麦克风 或 播放捕获，PCM16 mono 16kHz）        │
 │    └→ 环形缓冲 → VAD 分段器（静音边界，15–30s，1–2s 重叠）         │
-│         └→ TranscriptionQueue（WAV 编码 → TranscriptionProvider：  │
-│              ElevenLabs Scribe v2 默认 / OpenRouter 多模态回退）    │
+│         └→ TranscriptionQueue（WAV/流式 → TranscriptionProvider：  │
+│              Deepgram Nova-3 / ElevenLabs Scribe / OpenRouter 回退）│
 │              └→ TranslationQueue（OpenRouter：纠错 + 翻译）        │
 │                   └→ Room 持久化 → StateFlow → Compose UI         │
 └───────────────────────────────────────────────────────────────────┘
@@ -56,9 +56,10 @@
 
 ## 4. 服务集成（ElevenLabs 转写 + OpenRouter 翻译/回退）
 
-应用采用**双 Key 架构**：
-- **ElevenLabs Key（推荐填写）**：驱动默认转写 Provider——Scribe v2，当前批量转写准确率第一梯队（AA-WER ~2.2%）+ 声学级 diarization（最多 48 说话人）。
-- **OpenRouter Key（必填）**：驱动全部翻译、词表纠错 pass，以及未填 ElevenLabs Key 时的转写回退 Provider。
+应用采用**多 Key 架构**（OpenRouter 必填；专业 STT Key 按优先级选用）：
+- **OpenRouter Key（必填）**：驱动全部翻译、词表纠错 pass，以及无专业 STT Key 时的转写回退 Provider。
+- **Deepgram Key（本开发者优先）**：已有 $200 免费额度时作为个人默认转写 Provider——Nova-3 支持流式 diarization + 多语言（含中文），额度内边际成本为 0。
+- **ElevenLabs Key（产品出厂推荐）**：无 Deepgram 额度 / 追求最高准确率时用 Scribe v2（批量 diarization 含价，AA-WER 第一梯队）。
 
 ### 4.1 转写 Provider 抽象
 
@@ -85,10 +86,12 @@
 
 | 档位 | Provider / 模型 | 价格 | 推荐理由 |
 | --- | --- | --- | --- |
-| **最高准确率（默认）** | ElevenLabs `scribe_v2`（diarize=true） | ~$0.22/h | AA-WER 榜第一梯队（~2.2%）；声学 diarization 最多 48 人；99 语言；keyterms 词表注入 |
-| 回退默认（无 ElevenLabs Key） | OpenRouter `google/gemini-3.1-pro-preview` | $2/$12 per M tokens | 多模态模型中 diarization 最强谱系；1M 上下文利于长会话上下文注入 |
-| 回退·均衡 | OpenRouter `google/gemini-3.5-flash` | $1.5/$9 | 同系 Flash 档，延迟低、便宜 |
-| 回退·低成本 | OpenRouter `google/gemini-3-flash-preview` | $0.5/$3 | 实时性最好，准确率可接受 |
+| **个人开发默认（有 $200 额度时）** | Deepgram `nova-3` multilingual（`diarize=true`） | 额度内 $0；耗尽后 ~$0.55–$0.75/h | 流式+批量均支持 diarization；含中文；额度约 267–366 h |
+| **产品出厂默认 / 最高准确率** | ElevenLabs `scribe_v2`（diarize=true） | ~$0.22/h（+keyterms $0.05） | AA-WER 第一梯队；diarization 含价；99 语言 |
+| 低延迟着色可选 | AssemblyAI `u3-rt-pro` + stream diar | $0.57/h | 真流式说话人标签，边说边着色 |
+| 回退默认（无专业 STT Key） | OpenRouter `google/gemini-3.1-pro-preview` | $2/$12 per M tokens | 多模态 diarization 最强谱系；单 Key 可用 |
+| 回退·均衡 | OpenRouter `google/gemini-3.5-flash` | $1.5/$9 | 延迟低、便宜 |
+| 回退·低成本 | OpenRouter `google/gemini-3-flash-preview` | $0.5/$3 | 实时性最好 |
 
 **翻译（纯文本 LLM，均走 OpenRouter）**
 
@@ -156,16 +159,25 @@
 | 有效成本（中） | ★★★★★ | ★★★★★ | ★★★★★ | ★★☆☆☆ | ★★★☆☆ |
 | 单 Key 体验（低） | 需第二 Key | 需第二 Key | 需第二 Key | 需第二 Key | ★★★★★ |
 
-#### 重评结论（相对原方案微调，默认不变）
+#### 重评结论
 
-1. **默认仍为 ElevenLabs Scribe v2 分块批量**（~$0.29/h 含词表）：在「必须 diarization + 多语言 + 准确率」约束下，性价比最优；Realtime **不能**单独做默认（无 diar）。
-2. **AssemblyAI 从「远期可选」升为「一等并列候选」**：async 路径与 Scribe 价差可忽略（$0.30 vs $0.29）；**流式+diar（$0.57/h）是目前唯一能边说边按说话人着色的成熟方案**，适合 M7 做「低延迟着色」档位（约 2× 成本换实时体验）。
-3. **Speechmatics** 在中英混说场景可作专用 Provider；公开价约与 Scribe 同档，但计费档位不透明，暂不默认。
-4. **Deepgram** 在本场景性价比差（diar+词表后接近流式 AssemblyAI 的价，多语言又弱），仅作英语嘈杂音频的备选，不进默认档。
-5. **OpenRouter LLM 音频** 继续作无 ElevenLabs/AssemblyAI Key 时的回退；比专业 STT 贵约 1.3–1.7×，且 diarization 明显更弱——单 Key 便利的代价。
-6. **OpenRouter `/audio/transcriptions`（Whisper 等）** 维持隐藏降级，启用前警告失去说话人颜色区分。
+**产品默认（无免费额度的一般用户）**
+1. **默认仍为 ElevenLabs Scribe v2 分块批量**（~$0.29/h 含词表）：在「必须 diarization + 多语言 + 准确率」约束下，付费性价比最优；Realtime **不能**单独做默认（无 diar）。
+2. **AssemblyAI** 为付费并列候选：async ≈ Scribe；流式+diar（$0.57/h）适合「边说边着色」。
+3. **Deepgram** 付费价偏高（diar+词表后 $0.55–$0.75/h），一般不作为出厂默认。
+4. **OpenRouter LLM 音频** 继续作无专业 STT Key 时的回退；Whisper 等无 diar 端点维持隐藏降级。
 
-**Provider 落地优先级**：M2 = Scribe v2；M4 = OpenRouter 回退；M7 = AssemblyAI 流式 diar（可选第三 Key 或设置页切换）+ Scribe Realtime 灰色预览。
+**本仓库开发者特例：已有 $200 Deepgram 免费额度 → 个人默认改用 Deepgram**
+- 额度可支撑（含 diar + keyterms）：批量多语言约 **366 h**（~18 个月 @20h/月，或 ~6 个月 @60h/月）；流式多语言约 **267 h**。
+- Deepgram 对本场景**能力合格**：Nova-3 支持流式 diarization（`diarize=true&diarize_model=latest`）、多语言含中文（`zh`）与 `multi` code-switch、keyterm prompting。
+- 相对 Scribe：付费更贵、多语言/diar 通常略弱；但在额度耗尽前**边际成本为 $0**，对个人开发/自用是理性选择。
+- 额度耗尽后自动回退到 Scribe（若已填 ElevenLabs Key）或 OpenRouter LLM。
+
+**Provider 落地优先级（据此调整）**
+1. **M2**：`TranscriptionProvider` + **Deepgram Nova-3**（开发者有额度时的默认；设置页可选）——优先流式+diar，实现真正的边说边着色
+2. **M2/M4**：ElevenLabs Scribe v2（产品出厂默认 / 额度耗尽后首选）
+3. **M4**：OpenRouter 多模态回退
+4. **M7**：AssemblyAI 流式 diar 可选；Scribe Realtime 灰色预览
 
 ## 5. 多说话人与多语言
 
@@ -216,8 +228,8 @@ Kotlin 2.x · Jetpack Compose + Material 3 · Hilt · Room · DataStore · OkHtt
 
 | 里程碑 | 内容 | 验收 |
 | --- | --- | --- |
-| M1 项目骨架 | Gradle 工程、Hilt、导航、设置页、双 API Key（OpenRouter + ElevenLabs）加密存储与校验 | 两个 Key 分别校验通过并返回可用状态 |
-| M2 麦克风转写 | AudioRecord + VAD 分段 + `TranscriptionProvider` 接口 + ElevenLabs Scribe v2 实现（含 diarize）+ 实时字幕页 | 真机/模拟器实时看到转写文本 |
+| M1 项目骨架 | Gradle 工程、Hilt、导航、设置页、多 API Key（OpenRouter + ElevenLabs + Deepgram）加密存储与校验 | Key 分别校验通过并返回可用状态 |
+| M2 麦克风转写 | AudioRecord + VAD/流式 + `TranscriptionProvider` + **Deepgram Nova-3（优先，含流式 diar）** + ElevenLabs Scribe v2 实现 + 实时字幕页（颜色区分说话人） | 真机/模拟器实时看到按说话人着色的转写文本；Deepgram 额度可跑通端到端 |
 | M3 播放捕获 | MediaProjection + AudioPlaybackCapture + 前台服务完整生命周期 | 捕获其他应用（如 YouTube）音频并转写 |
 | M4 说话人与回退路径 | 跨块说话人 ID 对齐（重叠词对齐 + 嵌入聚类）、颜色映射、OpenRouter 多模态回退 Provider（含说话人描述传递） | 多说话人音频中不同说话人以稳定且不同的颜色呈现（无文字标签）；拔掉 ElevenLabs Key 后回退路径可用 |
 | M5 翻译管线 | 逐段翻译、滚动上下文、术语表、词表纠错 pass、精修 pass | 双语实时显示，译文术语一致 |
