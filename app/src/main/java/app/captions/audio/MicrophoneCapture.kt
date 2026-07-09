@@ -14,10 +14,10 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class MicrophoneCapture @Inject constructor() {
+class MicrophoneCapture @Inject constructor() : AudioCapture {
 
-    fun pcm16Frames(frameMs: Int = 100): Flow<ByteArray> = flow {
-        val sampleRate = SAMPLE_RATE
+    override fun pcm16Frames(frameMs: Int): Flow<ByteArray> = flow {
+        val sampleRate = AudioCapture.SAMPLE_RATE
         val channelConfig = AudioFormat.CHANNEL_IN_MONO
         val encoding = AudioFormat.ENCODING_PCM_16BIT
         val minBuffer = AudioRecord.getMinBufferSize(sampleRate, channelConfig, encoding)
@@ -56,8 +56,7 @@ class MicrophoneCapture @Inject constructor() {
         }
     }.flowOn(Dispatchers.IO)
 
-    companion object {
-        const val SAMPLE_RATE = 16_000
-        private const val TAG = "MicrophoneCapture"
+    private companion object {
+        const val TAG = "MicrophoneCapture"
     }
 }

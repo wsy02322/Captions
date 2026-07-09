@@ -1,7 +1,11 @@
 package app.captions.ui.live
 
 import android.Manifest
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.projection.MediaProjectionManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -28,6 +32,7 @@ import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -38,6 +43,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,6 +57,7 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.captions.R
+import app.captions.audio.CaptureSource
 import app.captions.pipeline.CaptureStatus
 import app.captions.pipeline.LiveCaptionState
 import app.captions.service.CaptionForegroundService
@@ -62,34 +71,61 @@ fun LiveCaptionScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val permissionLauncher = rememberLauncherForActivityResult(
+    var captureSource by remember { mutableStateOf(CaptureSource.MICROPHONE) }
+
+    val micPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
-        if (granted) CaptionForegroundService.start(context)
+        if (granted) CaptionForegroundService.startMicrophone(context)
+    }
+
+    val projectionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
+            CaptionForegroundService.startPlayback(context, result.resultCode, result.data!!)
+        }
     }
 
     LiveCaptionContent(
         state = uiState,
+        captureSource = captureSource,
+        onCaptureSourceChange = { captureSource = it },
         onBack = onBack,
         onStart = {
-            val granted = ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.RECORD_AUDIO,
-            ) == PackageManager.PERMISSION_GRANTED
-            if (granted) {
-                CaptionForegroundService.start(context)
-            } else {
-                permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            when (captureSource) {
+                CaptureSource.MICROPHONE -> startMicrophone(context, micPermissionLauncher::launch)
+                CaptureSource.PLAYBACK -> {
+                    val mpm = context.getSystemService(MediaProjectionManager::class.java)
+                    projectionLauncher.launch(mpm.createScreenCaptureIntent())
+                }
             }
         },
         onStop = { CaptionForegroundService.stop(context) },
     )
 }
 
+private fun startMicrophone(
+    context: Context,
+    requestPermission: (String) -> Unit,
+) {
+    val granted = ContextCompat.checkSelfPermission(
+        context,
+        Manifest.permission.RECORD_AUDIO,
+    ) == PackageManager.PERMISSION_GRANTED
+    if (granted) {
+        CaptionForegroundService.startMicrophone(context)
+    } else {
+        requestPermission(Manifest.permission.RECORD_AUDIO)
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LiveCaptionContent(
     state: LiveCaptionState,
+    captureSource: CaptureSource = CaptureSource.MICROPHONE,
+    onCaptureSourceChange: (CaptureSource) -> Unit = {},
     onBack: () -> Unit,
     onStart: () -> Unit,
     onStop: () -> Unit,
@@ -100,6 +136,8 @@ fun LiveCaptionContent(
         addAll(state.lines)
         state.partial?.let { add(it) }
     }
+    val listening = state.status == CaptureStatus.Listening ||
+        state.status == CaptureStatus.Connecting
 
     LaunchedEffect(displayLines.size, state.partial?.text) {
         if (displayLines.isNotEmpty()) {
@@ -129,6 +167,31 @@ fun LiveCaptionContent(
                 .padding(16.dp),
         ) {
             StatusRow(state = state)
+            Spacer(Modifier.height(8.dp))
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = captureSource == CaptureSource.MICROPHONE,
+                    onClick = { if (!listening) onCaptureSourceChange(CaptureSource.MICROPHONE) },
+                    enabled = !listening,
+                    label = { Text(stringResource(R.string.live_source_mic)) },
+                )
+                FilterChip(
+                    selected = captureSource == CaptureSource.PLAYBACK,
+                    onClick = { if (!listening) onCaptureSourceChange(CaptureSource.PLAYBACK) },
+                    enabled = !listening,
+                    label = { Text(stringResource(R.string.live_source_playback)) },
+                )
+            }
+            if (captureSource == CaptureSource.PLAYBACK) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = stringResource(R.string.live_playback_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
             Spacer(Modifier.height(8.dp))
             LinearProgressIndicator(
                 progress = { state.level },
@@ -165,8 +228,6 @@ fun LiveCaptionContent(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                val listening = state.status == CaptureStatus.Listening ||
-                    state.status == CaptureStatus.Connecting
                 if (listening) {
                     Button(onClick = onStop, modifier = Modifier.weight(1f)) {
                         Icon(Icons.Default.Stop, contentDescription = null)
@@ -190,7 +251,10 @@ private fun StatusRow(state: LiveCaptionState) {
     val label = when (state.status) {
         CaptureStatus.Idle -> stringResource(R.string.status_idle)
         CaptureStatus.Connecting -> stringResource(R.string.status_connecting)
-        CaptureStatus.Listening -> stringResource(R.string.status_listening)
+        CaptureStatus.Listening -> {
+            val base = stringResource(R.string.status_listening)
+            state.providerHint?.let { "$base · $it" } ?: base
+        }
         CaptureStatus.Error -> state.errorMessage ?: stringResource(R.string.status_error)
     }
     val color = when (state.status) {
