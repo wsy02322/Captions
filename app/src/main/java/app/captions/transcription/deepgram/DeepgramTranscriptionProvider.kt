@@ -36,24 +36,8 @@ class DeepgramTranscriptionProvider @Inject constructor(
         apiKey: String,
         onEvent: (TranscriptionEvent) -> Unit,
     ): StreamingTranscriptionSession {
-        val url = baseUrl.newBuilder()
-            .addPathSegment("v1")
-            .addPathSegment("listen")
-            .addQueryParameter("model", "nova-3")
-            .addQueryParameter("language", "multi")
-            .addQueryParameter("encoding", "linear16")
-            .addQueryParameter("sample_rate", "16000")
-            .addQueryParameter("channels", "1")
-            .addQueryParameter("interim_results", "true")
-            .addQueryParameter("punctuate", "true")
-            .addQueryParameter("smart_format", "true")
-            .addQueryParameter("diarize", "true")
-            .addQueryParameter("utterance_end_ms", "1200")
-            .addQueryParameter("vad_events", "true")
-            .build()
-
         val request = Request.Builder()
-            .url(url)
+            .url(buildListenUrl(baseUrl))
             .header("Authorization", "Token $apiKey")
             .build()
 
@@ -106,6 +90,29 @@ class DeepgramTranscriptionProvider @Inject constructor(
                 scope.cancel()
             }
         }
+    }
+
+    companion object {
+        /**
+         * Live listen query for Nova-3 multilingual + diarization.
+         * Do not combine `diarize` with `diarize_model` — Deepgram returns HTTP 400.
+         */
+        fun buildListenUrl(baseUrl: HttpUrl): HttpUrl =
+            baseUrl.newBuilder()
+                .addPathSegment("v1")
+                .addPathSegment("listen")
+                .addQueryParameter("model", "nova-3")
+                .addQueryParameter("language", "multi")
+                .addQueryParameter("encoding", "linear16")
+                .addQueryParameter("sample_rate", "16000")
+                .addQueryParameter("channels", "1")
+                .addQueryParameter("interim_results", "true")
+                .addQueryParameter("punctuate", "true")
+                .addQueryParameter("smart_format", "true")
+                .addQueryParameter("diarize", "true")
+                .addQueryParameter("utterance_end_ms", "1200")
+                .addQueryParameter("vad_events", "true")
+                .build()
     }
 }
 
