@@ -11,6 +11,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import app.captions.ui.home.HomeScreen
+import app.captions.ui.live.LiveCaptionScreen
 import app.captions.ui.settings.SettingsScreen
 import app.captions.ui.theme.CaptionsTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -26,10 +27,16 @@ class MainActivity : ComponentActivity() {
                     val navController = rememberNavController()
                     NavHost(navController = navController, startDestination = "home") {
                         composable("home") {
-                            HomeScreen(onOpenSettings = { navController.navigate("settings") })
+                            HomeScreen(
+                                onOpenSettings = { navController.navigate("settings") },
+                                onOpenLive = { navController.navigate("live") },
+                            )
                         }
                         composable("settings") {
                             SettingsScreen(onBack = { navController.popBackStack() })
+                        }
+                        composable("live") {
+                            LiveCaptionScreen(onBack = { navController.popBackStack() })
                         }
                     }
                 }

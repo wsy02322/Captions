@@ -110,6 +110,14 @@ fun SettingsContent(
                     onVerify = { onVerify(ApiProvider.OPENROUTER) },
                 )
                 ApiKeyCard(
+                    title = stringResource(R.string.settings_deepgram_key),
+                    description = stringResource(R.string.settings_deepgram_desc),
+                    hint = stringResource(R.string.settings_key_hint_deepgram),
+                    state = uiState.deepgram,
+                    onTextChanged = { onKeyChanged(ApiProvider.DEEPGRAM, it) },
+                    onVerify = { onVerify(ApiProvider.DEEPGRAM) },
+                )
+                ApiKeyCard(
                     title = stringResource(R.string.settings_elevenlabs_key),
                     description = stringResource(R.string.settings_elevenlabs_desc),
                     hint = stringResource(R.string.settings_key_hint_elevenlabs),

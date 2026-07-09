@@ -169,7 +169,7 @@
 
 **本仓库开发者特例：已有 $200 Deepgram 免费额度 → 个人默认改用 Deepgram**
 - 额度可支撑（含 diar + keyterms）：批量多语言约 **366 h**（~18 个月 @20h/月，或 ~6 个月 @60h/月）；流式多语言约 **267 h**。
-- Deepgram 对本场景**能力合格**：Nova-3 支持流式 diarization（`diarize=true&diarize_model=latest`）、多语言含中文（`zh`）与 `multi` code-switch、keyterm prompting。
+- Deepgram 对本场景**能力合格**：Nova-3 支持流式 diarization（`diarize=true`；勿与 `diarize_model` 同用）、多语言含中文（`zh`）与 `multi` code-switch、keyterm prompting。
 - 相对 Scribe：付费更贵、多语言/diar 通常略弱；但在额度耗尽前**边际成本为 $0**，对个人开发/自用是理性选择。
 - 额度耗尽后自动回退到 Scribe（若已填 ElevenLabs Key）或 OpenRouter LLM。
 

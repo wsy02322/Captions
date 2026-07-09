@@ -44,6 +44,10 @@ object AppModule {
     fun provideOpenRouterBaseUrl(): HttpUrl = "https://openrouter.ai/".toHttpUrl()
 
     @Provides
+    @Named("deepgramBaseUrl")
+    fun provideDeepgramBaseUrl(): HttpUrl = "https://api.deepgram.com/".toHttpUrl()
+
+    @Provides
     @Named("elevenLabsBaseUrl")
     fun provideElevenLabsBaseUrl(): HttpUrl = "https://api.elevenlabs.io/".toHttpUrl()
 }

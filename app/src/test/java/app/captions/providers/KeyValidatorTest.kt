@@ -28,6 +28,7 @@ class KeyValidatorTest {
         validator = KeyValidator(
             client = client,
             openRouterBaseUrl = server.url("/"),
+            deepgramBaseUrl = server.url("/"),
             elevenLabsBaseUrl = server.url("/"),
         )
     }
@@ -47,6 +48,18 @@ class KeyValidatorTest {
         val request = server.takeRequest()
         assertEquals("/api/v1/key", request.path)
         assertEquals("Bearer sk-or-v1-test", request.getHeader("Authorization"))
+    }
+
+    @Test
+    fun `deepgram valid key hits projects endpoint with token header`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"projects":[]}"""))
+
+        val result = validator.validate(ApiProvider.DEEPGRAM, "dg-test")
+
+        assertEquals(KeyValidationResult.VALID, result)
+        val request = server.takeRequest()
+        assertEquals("/v1/projects", request.path)
+        assertEquals("Token dg-test", request.getHeader("Authorization"))
     }
 
     @Test

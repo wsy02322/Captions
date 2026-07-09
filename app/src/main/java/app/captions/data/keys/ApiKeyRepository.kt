@@ -11,6 +11,7 @@ import javax.inject.Singleton
 
 enum class ApiProvider(val prefKey: String) {
     OPENROUTER("openrouter_api_key"),
+    DEEPGRAM("deepgram_api_key"),
     ELEVENLABS("elevenlabs_api_key"),
 }
 

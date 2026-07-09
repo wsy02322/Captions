@@ -15,12 +15,13 @@ enum class KeyValidationResult { VALID, INVALID, NETWORK_ERROR }
 
 /**
  * Verifies API keys against cheap authenticated endpoints:
- * OpenRouter `GET /api/v1/key`, ElevenLabs `GET /v1/user`.
+ * OpenRouter `GET /api/v1/key`, Deepgram `GET /v1/projects`, ElevenLabs `GET /v1/user`.
  */
 @Singleton
 class KeyValidator @Inject constructor(
     private val client: OkHttpClient,
     @Named("openRouterBaseUrl") private val openRouterBaseUrl: HttpUrl,
+    @Named("deepgramBaseUrl") private val deepgramBaseUrl: HttpUrl,
     @Named("elevenLabsBaseUrl") private val elevenLabsBaseUrl: HttpUrl,
 ) {
 
@@ -30,6 +31,12 @@ class KeyValidator @Inject constructor(
                 Request.Builder()
                     .url(openRouterBaseUrl.resolve("api/v1/key")!!)
                     .header("Authorization", "Bearer $key")
+                    .build()
+
+            ApiProvider.DEEPGRAM ->
+                Request.Builder()
+                    .url(deepgramBaseUrl.resolve("v1/projects")!!)
+                    .header("Authorization", "Token $key")
                     .build()
 
             ApiProvider.ELEVENLABS ->
