@@ -36,9 +36,16 @@ class OpenRouterTranscriptionProvider @Inject constructor(
         apiKey: String,
         wav: ByteArray,
         context: TranscriptionContext,
+    ): TranscriptionResult = transcribe(apiKey, wav, context, DEFAULT_MODEL)
+
+    suspend fun transcribe(
+        apiKey: String,
+        wav: ByteArray,
+        context: TranscriptionContext,
+        model: String,
     ): TranscriptionResult {
         val audioB64 = Base64.getEncoder().encodeToString(wav)
-        val payload = buildRequestJson(audioB64, context)
+        val payload = buildRequestJson(audioB64, context, model)
         val request = Request.Builder()
             .url(baseUrl.resolve("api/v1/chat/completions")!!)
             .header("Authorization", "Bearer $apiKey")
@@ -83,9 +90,13 @@ class OpenRouterTranscriptionProvider @Inject constructor(
             }
         }
 
-        fun buildRequestJson(audioB64: String, context: TranscriptionContext): JsonObject =
+        fun buildRequestJson(
+            audioB64: String,
+            context: TranscriptionContext,
+            model: String = DEFAULT_MODEL,
+        ): JsonObject =
             buildJsonObject {
-                put("model", DEFAULT_MODEL)
+                put("model", model.trim().ifEmpty { DEFAULT_MODEL })
                 put("temperature", 0.0)
                 put(
                     "messages",

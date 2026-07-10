@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -25,10 +27,12 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -41,6 +45,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -49,6 +54,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.captions.R
 import app.captions.data.keys.ApiProvider
+import app.captions.data.settings.ModelCatalog
+import app.captions.data.settings.ModelOption
+import app.captions.data.settings.TranscriptionProviderPreference
 
 @Composable
 fun SettingsScreen(
@@ -60,6 +68,9 @@ fun SettingsScreen(
         uiState = uiState,
         onKeyChanged = viewModel::onKeyChanged,
         onVerify = viewModel::onVerify,
+        onTranscriptionProviderChanged = viewModel::onTranscriptionProviderChanged,
+        onTranslationModelChanged = viewModel::onTranslationModelChanged,
+        onOpenRouterTranscriptionModelChanged = viewModel::onOpenRouterTranscriptionModelChanged,
         onBack = onBack,
     )
 }
@@ -70,6 +81,9 @@ fun SettingsContent(
     uiState: SettingsUiState,
     onKeyChanged: (ApiProvider, String) -> Unit,
     onVerify: (ApiProvider) -> Unit,
+    onTranscriptionProviderChanged: (TranscriptionProviderPreference) -> Unit = {},
+    onTranslationModelChanged: (String) -> Unit = {},
+    onOpenRouterTranscriptionModelChanged: (String) -> Unit = {},
     onBack: () -> Unit,
 ) {
     Scaffold(
@@ -124,6 +138,162 @@ fun SettingsContent(
                     state = uiState.elevenLabs,
                     onTextChanged = { onKeyChanged(ApiProvider.ELEVENLABS, it) },
                     onVerify = { onVerify(ApiProvider.ELEVENLABS) },
+                )
+
+                Text(
+                    text = stringResource(R.string.settings_models),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                TranscriptionProviderCard(
+                    selected = uiState.transcriptionProvider,
+                    onSelected = onTranscriptionProviderChanged,
+                )
+                ModelPickerCard(
+                    title = stringResource(R.string.settings_translation_model),
+                    description = stringResource(R.string.settings_translation_model_desc),
+                    options = ModelCatalog.translationModels,
+                    selectedId = uiState.translationModel,
+                    onSelected = onTranslationModelChanged,
+                )
+                ModelPickerCard(
+                    title = stringResource(R.string.settings_openrouter_stt_model),
+                    description = stringResource(R.string.settings_openrouter_stt_model_desc),
+                    options = ModelCatalog.openRouterTranscriptionModels,
+                    selectedId = uiState.openRouterTranscriptionModel,
+                    onSelected = onOpenRouterTranscriptionModelChanged,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TranscriptionProviderCard(
+    selected: TranscriptionProviderPreference,
+    onSelected: (TranscriptionProviderPreference) -> Unit,
+) {
+    val options = listOf(
+        TranscriptionProviderPreference.AUTO to stringResource(R.string.settings_provider_auto),
+        TranscriptionProviderPreference.DEEPGRAM to stringResource(R.string.settings_provider_deepgram),
+        TranscriptionProviderPreference.ELEVENLABS to stringResource(R.string.settings_provider_elevenlabs),
+        TranscriptionProviderPreference.OPENROUTER to stringResource(R.string.settings_provider_openrouter),
+    )
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = stringResource(R.string.settings_transcription_provider),
+                style = MaterialTheme.typography.titleSmall,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = stringResource(R.string.settings_transcription_provider_desc),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(12.dp))
+            Column(modifier = Modifier.selectableGroup()) {
+                options.forEach { (value, label) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .selectable(
+                                selected = selected == value,
+                                onClick = { onSelected(value) },
+                                role = Role.RadioButton,
+                            )
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(
+                            selected = selected == value,
+                            onClick = null,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(text = label, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ModelPickerCard(
+    title: String,
+    description: String,
+    options: List<ModelOption>,
+    selectedId: String,
+    onSelected: (String) -> Unit,
+) {
+    var customExpanded by rememberSaveable { mutableStateOf(false) }
+    var customText by rememberSaveable(selectedId) {
+        mutableStateOf(
+            if (options.any { it.id == selectedId }) "" else selectedId,
+        )
+    }
+    val knownSelected = options.any { it.id == selectedId }
+
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(text = title, style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(12.dp))
+            Column(modifier = Modifier.selectableGroup()) {
+                options.forEach { option ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .selectable(
+                                selected = selectedId == option.id,
+                                onClick = {
+                                    customExpanded = false
+                                    onSelected(option.id)
+                                },
+                                role = Role.RadioButton,
+                            )
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(
+                            selected = selectedId == option.id,
+                            onClick = null,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Column {
+                            Text(text = option.label, style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                text = option.tier,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            FilterChip(
+                selected = !knownSelected || customExpanded,
+                onClick = { customExpanded = !customExpanded },
+                label = { Text(stringResource(R.string.settings_custom_model)) },
+            )
+            if (customExpanded || !knownSelected) {
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = customText,
+                    onValueChange = {
+                        customText = it
+                        if (it.isNotBlank()) onSelected(it.trim())
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    placeholder = { Text(stringResource(R.string.settings_custom_model_hint)) },
+                    label = { Text(stringResource(R.string.settings_custom_model)) },
                 )
             }
         }

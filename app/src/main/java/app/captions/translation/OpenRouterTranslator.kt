@@ -31,7 +31,11 @@ class OpenRouterTranslator @Inject constructor(
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
-    suspend fun translate(apiKey: String, request: TranslationRequest): TranslationResult {
+    suspend fun translate(
+        apiKey: String,
+        request: TranslationRequest,
+        model: String = DEFAULT_MODEL,
+    ): TranslationResult {
         val system = buildString {
             appendLine("You are a precise subtitle translator.")
             appendLine("Translate the user text into ${request.targetLanguage}.")
@@ -44,8 +48,9 @@ class OpenRouterTranslator @Inject constructor(
                 }
             }
         }
+        val modelId = model.trim().ifEmpty { DEFAULT_MODEL }
         val payload = buildJsonObject {
-            put("model", DEFAULT_MODEL)
+            put("model", modelId)
             put("temperature", 0.0)
             put(
                 "messages",

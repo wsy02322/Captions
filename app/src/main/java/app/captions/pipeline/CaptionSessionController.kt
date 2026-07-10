@@ -8,6 +8,7 @@ import app.captions.audio.PlaybackCapture
 import app.captions.audio.WavEncoder
 import app.captions.data.keys.ApiKeyRepository
 import app.captions.data.keys.ApiProvider
+import app.captions.data.settings.UserPreferencesRepository
 import app.captions.transcription.BatchTranscriptionProvider
 import app.captions.transcription.CaptionLine
 import app.captions.transcription.SelectedProviderKind
@@ -61,6 +62,7 @@ class CaptionSessionController @Inject constructor(
     private val openRouter: OpenRouterTranscriptionProvider,
     private val selector: TranscriptionProviderSelector,
     private val apiKeyRepository: ApiKeyRepository,
+    private val preferencesRepository: UserPreferencesRepository,
     private val translator: OpenRouterTranslator,
 ) {
     private val _state = MutableStateFlow(LiveCaptionState())
@@ -72,6 +74,8 @@ class CaptionSessionController @Inject constructor(
     private val translationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val translationMutex = Mutex()
     private val recentPairs = ArrayDeque<Pair<String, String>>()
+    private var translationModel: String = OpenRouterTranslator.DEFAULT_MODEL
+    private var openRouterSttModel: String = OpenRouterTranscriptionProvider.DEFAULT_MODEL
 
     fun start(
         scope: CoroutineScope,
@@ -93,7 +97,11 @@ class CaptionSessionController @Inject constructor(
                 )
             }
 
-            val resolved = selector.resolve()
+            val prefs = preferencesRepository.preferences.first()
+            translationModel = prefs.translationModel
+            openRouterSttModel = prefs.openRouterTranscriptionModel
+
+            val resolved = selector.resolve(prefs.transcriptionProvider)
             if (resolved == null) {
                 _state.update {
                     it.copy(
@@ -114,7 +122,12 @@ class CaptionSessionController @Inject constructor(
                 return@launch
             }
 
-            _state.update { it.copy(providerHint = resolved.displayHint) }
+            val providerHint = when (resolved.kind) {
+                SelectedProviderKind.OPENROUTER_BATCH ->
+                    "${resolved.displayHint} (${openRouterSttModel.substringAfterLast('/')})"
+                else -> resolved.displayHint
+            }
+            _state.update { it.copy(providerHint = providerHint) }
 
             try {
                 val frames: Flow<ByteArray> = when (source) {
@@ -130,7 +143,7 @@ class CaptionSessionController @Inject constructor(
                         runBatch(elevenLabs, resolved.apiKey, frames)
 
                     SelectedProviderKind.OPENROUTER_BATCH ->
-                        runBatch(openRouter, resolved.apiKey, frames)
+                        runOpenRouterBatch(resolved.apiKey, frames, openRouterSttModel)
                 }
             } catch (t: kotlinx.coroutines.CancellationException) {
                 throw t
@@ -190,6 +203,30 @@ class CaptionSessionController @Inject constructor(
         apiKey: String,
         frames: Flow<ByteArray>,
     ) {
+        runBatchInternal(frames) { wav, context ->
+            provider.transcribe(apiKey = apiKey, wav = wav, context = context)
+        }
+    }
+
+    private suspend fun CoroutineScope.runOpenRouterBatch(
+        apiKey: String,
+        frames: Flow<ByteArray>,
+        model: String,
+    ) {
+        runBatchInternal(frames) { wav, context ->
+            openRouter.transcribe(
+                apiKey = apiKey,
+                wav = wav,
+                context = context,
+                model = model,
+            )
+        }
+    }
+
+    private suspend fun CoroutineScope.runBatchInternal(
+        frames: Flow<ByteArray>,
+        transcribe: suspend (ByteArray, TranscriptionContext) -> TranscriptionResult,
+    ) {
         _state.update { it.copy(status = CaptureStatus.Listening) }
         handleEvent(TranscriptionEvent.Connected)
         val vad = EnergyVadSegmenter()
@@ -199,10 +236,9 @@ class CaptionSessionController @Inject constructor(
         suspend fun processPcm(pcm: ByteArray) {
             if (pcm.isEmpty()) return
             val wav = WavEncoder.encodePcm16Mono(pcm)
-            val result = provider.transcribe(
-                apiKey = apiKey,
-                wav = wav,
-                context = TranscriptionContext(
+            val result = transcribe(
+                wav,
+                TranscriptionContext(
                     priorText = priorText,
                     speakerDescriptions = speakerDescriptions,
                 ),
@@ -345,6 +381,7 @@ class CaptionSessionController @Inject constructor(
                             targetLanguage = target,
                             priorPairs = recentPairs.toList(),
                         ),
+                        model = translationModel,
                     )
                 }.onSuccess { result ->
                     recentPairs.addLast(text to result.translatedText)

@@ -2,6 +2,8 @@ package app.captions.pipeline
 
 import app.captions.data.keys.ApiKeyRepository
 import app.captions.data.keys.ApiProvider
+import app.captions.data.settings.TranscriptionProviderPreference
+import app.captions.data.settings.UserPreferencesRepository
 import app.captions.transcription.SelectedProviderKind
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
@@ -14,39 +16,59 @@ data class ResolvedTranscriptionProvider(
 )
 
 /**
- * Provider priority for this developer build:
+ * Resolves which STT provider to use.
+ *
+ * Default order when preference is [TranscriptionProviderPreference.AUTO]:
  * Deepgram streaming (credits) → ElevenLabs Scribe batch → OpenRouter multimodal.
+ * A user preference pins a provider when its key is present; otherwise falls back to AUTO.
  */
 @Singleton
 class TranscriptionProviderSelector @Inject constructor(
     private val apiKeyRepository: ApiKeyRepository,
+    private val preferencesRepository: UserPreferencesRepository,
 ) {
-    suspend fun resolve(): ResolvedTranscriptionProvider? {
+    suspend fun resolve(
+        preference: TranscriptionProviderPreference? = null,
+    ): ResolvedTranscriptionProvider? {
+        val pref = preference
+            ?: preferencesRepository.preferences.first().transcriptionProvider
         val deepgram = apiKeyRepository.key(ApiProvider.DEEPGRAM).first()
-        if (!deepgram.isNullOrBlank()) {
-            return ResolvedTranscriptionProvider(
+        val eleven = apiKeyRepository.key(ApiProvider.ELEVENLABS).first()
+        val openRouter = apiKeyRepository.key(ApiProvider.OPENROUTER).first()
+
+        fun deepgramResolved() = deepgram?.takeIf { it.isNotBlank() }?.let {
+            ResolvedTranscriptionProvider(
                 kind = SelectedProviderKind.DEEPGRAM_STREAMING,
-                apiKey = deepgram,
+                apiKey = it,
                 displayHint = "Deepgram Nova-3",
             )
         }
-        val eleven = apiKeyRepository.key(ApiProvider.ELEVENLABS).first()
-        if (!eleven.isNullOrBlank()) {
-            return ResolvedTranscriptionProvider(
+
+        fun elevenResolved() = eleven?.takeIf { it.isNotBlank() }?.let {
+            ResolvedTranscriptionProvider(
                 kind = SelectedProviderKind.ELEVENLABS_BATCH,
-                apiKey = eleven,
+                apiKey = it,
                 displayHint = "ElevenLabs Scribe v2",
             )
         }
-        val openRouter = apiKeyRepository.key(ApiProvider.OPENROUTER).first()
-        if (!openRouter.isNullOrBlank()) {
-            return ResolvedTranscriptionProvider(
+
+        fun openRouterResolved() = openRouter?.takeIf { it.isNotBlank() }?.let {
+            ResolvedTranscriptionProvider(
                 kind = SelectedProviderKind.OPENROUTER_BATCH,
-                apiKey = openRouter,
+                apiKey = it,
                 displayHint = "OpenRouter multimodal",
             )
         }
-        return null
+
+        val preferred = when (pref) {
+            TranscriptionProviderPreference.AUTO -> null
+            TranscriptionProviderPreference.DEEPGRAM -> deepgramResolved()
+            TranscriptionProviderPreference.ELEVENLABS -> elevenResolved()
+            TranscriptionProviderPreference.OPENROUTER -> openRouterResolved()
+        }
+        if (preferred != null) return preferred
+
+        return deepgramResolved() ?: elevenResolved() ?: openRouterResolved()
     }
 
     companion object {

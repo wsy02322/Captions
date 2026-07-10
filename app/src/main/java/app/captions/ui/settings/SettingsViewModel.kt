@@ -4,6 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.captions.data.keys.ApiKeyRepository
 import app.captions.data.keys.ApiProvider
+import app.captions.data.settings.ModelCatalog
+import app.captions.data.settings.TranscriptionProviderPreference
+import app.captions.data.settings.UserPreferences
+import app.captions.data.settings.UserPreferencesRepository
 import app.captions.providers.KeyValidationResult
 import app.captions.providers.KeyValidator
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -27,11 +31,16 @@ data class SettingsUiState(
     val openRouter: KeyFieldState = KeyFieldState(),
     val deepgram: KeyFieldState = KeyFieldState(),
     val elevenLabs: KeyFieldState = KeyFieldState(),
+    val transcriptionProvider: TranscriptionProviderPreference =
+        TranscriptionProviderPreference.AUTO,
+    val translationModel: String = ModelCatalog.DEFAULT_TRANSLATION_MODEL,
+    val openRouterTranscriptionModel: String = ModelCatalog.DEFAULT_OPENROUTER_STT_MODEL,
 )
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val repository: ApiKeyRepository,
+    private val preferencesRepository: UserPreferencesRepository,
     private val validator: KeyValidator,
 ) : ViewModel() {
 
@@ -45,12 +54,16 @@ class SettingsViewModel @Inject constructor(
             val openRouter = repository.key(ApiProvider.OPENROUTER).first().orEmpty()
             val deepgram = repository.key(ApiProvider.DEEPGRAM).first().orEmpty()
             val elevenLabs = repository.key(ApiProvider.ELEVENLABS).first().orEmpty()
+            val prefs: UserPreferences = preferencesRepository.preferences.first()
             _uiState.update {
                 it.copy(
                     loaded = true,
                     openRouter = KeyFieldState(openRouter),
                     deepgram = KeyFieldState(deepgram),
                     elevenLabs = KeyFieldState(elevenLabs),
+                    transcriptionProvider = prefs.transcriptionProvider,
+                    translationModel = prefs.translationModel,
+                    openRouterTranscriptionModel = prefs.openRouterTranscriptionModel,
                 )
             }
         }
@@ -86,6 +99,27 @@ class SettingsViewModel @Inject constructor(
                 KeyValidationResult.NETWORK_ERROR -> KeyFieldStatus.NETWORK_ERROR
             }
             updateField(provider) { it.copy(status = status) }
+        }
+    }
+
+    fun onTranscriptionProviderChanged(preference: TranscriptionProviderPreference) {
+        _uiState.update { it.copy(transcriptionProvider = preference) }
+        viewModelScope.launch {
+            preferencesRepository.setTranscriptionProvider(preference)
+        }
+    }
+
+    fun onTranslationModelChanged(modelId: String) {
+        _uiState.update { it.copy(translationModel = modelId) }
+        viewModelScope.launch {
+            preferencesRepository.setTranslationModel(modelId)
+        }
+    }
+
+    fun onOpenRouterTranscriptionModelChanged(modelId: String) {
+        _uiState.update { it.copy(openRouterTranscriptionModel = modelId) }
+        viewModelScope.launch {
+            preferencesRepository.setOpenRouterTranscriptionModel(modelId)
         }
     }
 

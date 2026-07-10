@@ -29,6 +29,19 @@
     <string name="settings_key_verifying">Verifying…</string>
     <string name="settings_show_key">Show key</string>
     <string name="settings_hide_key">Hide key</string>
+    <string name="settings_models">Models</string>
+    <string name="settings_transcription_provider">Transcription provider</string>
+    <string name="settings_transcription_provider_desc">Choose which STT backend to use. Auto picks Deepgram → ElevenLabs → OpenRouter based on available keys.</string>
+    <string name="settings_provider_auto">Auto (recommended)</string>
+    <string name="settings_provider_deepgram">Deepgram Nova-3</string>
+    <string name="settings_provider_elevenlabs">ElevenLabs Scribe v2</string>
+    <string name="settings_provider_openrouter">OpenRouter multimodal</string>
+    <string name="settings_translation_model">Translation model</string>
+    <string name="settings_translation_model_desc">OpenRouter text model used for live translation. Factory default is Gemini 3.1 Pro.</string>
+    <string name="settings_openrouter_stt_model">OpenRouter transcription model</string>
+    <string name="settings_openrouter_stt_model_desc">Used when transcription falls back to OpenRouter multimodal audio.</string>
+    <string name="settings_custom_model">Custom model ID</string>
+    <string name="settings_custom_model_hint">provider/model-name</string>
     <string name="back">Back</string>
 
     <string name="live_title">Live captions</string>
