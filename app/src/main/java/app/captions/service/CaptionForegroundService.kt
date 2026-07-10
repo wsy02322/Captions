@@ -147,6 +147,18 @@ class CaptionForegroundService : Service() {
                 .putExtra(EXTRA_RESULT_CODE, resultCode)
                 .putExtra(EXTRA_PROJECTION_DATA, data)
             context.startForegroundService(intent)
+            bringCaptionsToFront(context)
+        }
+
+        /** After MediaProjection UI (single-app / entire screen), return to Captions live screen. */
+        fun bringCaptionsToFront(context: Context) {
+            val launch = Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                    Intent.FLAG_ACTIVITY_NEW_TASK
+                putExtra(MainActivity.EXTRA_NAVIGATE_TO, MainActivity.ROUTE_LIVE)
+            }
+            context.startActivity(launch)
         }
 
         /** @deprecated Prefer [startMicrophone] or [startPlayback]. */

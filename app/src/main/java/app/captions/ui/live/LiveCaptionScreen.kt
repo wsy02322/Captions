@@ -84,6 +84,8 @@ fun LiveCaptionScreen(
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK && result.data != null) {
             CaptionForegroundService.startPlayback(context, result.resultCode, result.data!!)
+            // Also bring UI forward from the Activity callback (covers OEM quirks).
+            CaptionForegroundService.bringCaptionsToFront(context)
         }
     }
 
@@ -280,7 +282,7 @@ private fun CaptionBubble(line: CaptionLine, darkTheme: Boolean) {
                 .background(speakerColor),
         )
         Spacer(Modifier.width(10.dp))
-        Box(
+        Column(
             modifier = Modifier
                 .weight(1f)
                 .clip(RoundedCornerShape(12.dp))
@@ -294,6 +296,15 @@ private fun CaptionBubble(line: CaptionLine, darkTheme: Boolean) {
                     alpha = if (line.isFinal) 1f else 0.7f,
                 ),
             )
+            val translation = line.translation
+            if (!translation.isNullOrBlank()) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = translation,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
