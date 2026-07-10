@@ -31,8 +31,22 @@ class LiveCaptionScreenshotTest {
                     state = LiveCaptionState(
                         status = CaptureStatus.Listening,
                         lines = listOf(
-                            CaptionLine("1", 0, "Hello from speaker one", true, 1L),
-                            CaptionLine("2", 1, "And a reply from speaker two", true, 2L),
+                            CaptionLine(
+                                id = "1",
+                                speaker = 0,
+                                text = "Hello from speaker one",
+                                isFinal = true,
+                                startedAtMs = 1L,
+                                translation = "来自一号说话人的你好",
+                            ),
+                            CaptionLine(
+                                id = "2",
+                                speaker = 1,
+                                text = "And a reply from speaker two",
+                                isFinal = true,
+                                startedAtMs = 2L,
+                                translation = "二号说话人的回复",
+                            ),
                         ),
                         partial = CaptionLine("3", 0, "Continuing…", false, 3L),
                         level = 0.4f,

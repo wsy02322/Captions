@@ -11,6 +11,7 @@ data class CaptionLine(
     val isFinal: Boolean,
     val startedAtMs: Long,
     val updatedAtMs: Long = startedAtMs,
+    val translation: String? = null,
 )
 
 data class TranscriptionWord(

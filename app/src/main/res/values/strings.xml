@@ -32,10 +32,10 @@
     <string name="back">Back</string>
 
     <string name="live_title">Live captions</string>
-    <string name="live_empty">Tap start. Speakers are shown by color only.</string>
+    <string name="live_empty">Tap start. Speakers are shown by color only. Translations appear under each line when an OpenRouter key is set.</string>
     <string name="live_source_mic">Microphone</string>
     <string name="live_source_playback">App audio</string>
-    <string name="live_playback_hint">App audio needs a one-time screen-capture permission. Some apps block capture (DRM). Voice calls cannot be captured.</string>
+    <string name="live_playback_hint">App audio needs a one-time screen-capture permission. After you choose a single app or the entire screen, Captions returns automatically. Some apps block capture (DRM). Voice calls cannot be captured.</string>
     <string name="start_listening">Start listening</string>
     <string name="stop">Stop</string>
     <string name="status_idle">Idle</string>

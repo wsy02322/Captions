@@ -6,6 +6,8 @@ import app.captions.audio.EnergyVadSegmenter
 import app.captions.audio.MicrophoneCapture
 import app.captions.audio.PlaybackCapture
 import app.captions.audio.WavEncoder
+import app.captions.data.keys.ApiKeyRepository
+import app.captions.data.keys.ApiProvider
 import app.captions.transcription.BatchTranscriptionProvider
 import app.captions.transcription.CaptionLine
 import app.captions.transcription.SelectedProviderKind
@@ -16,15 +18,22 @@ import app.captions.transcription.TranscriptionResult
 import app.captions.transcription.deepgram.DeepgramTranscriptionProvider
 import app.captions.transcription.elevenlabs.ElevenLabsTranscriptionProvider
 import app.captions.transcription.openrouter.OpenRouterTranscriptionProvider
+import app.captions.translation.OpenRouterTranslator
+import app.captions.translation.TranslationRequest
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
@@ -40,6 +49,7 @@ data class LiveCaptionState(
     val level: Float = 0f,
     val providerHint: String? = null,
     val captureSource: CaptureSource = CaptureSource.MICROPHONE,
+    val targetLanguage: String = OpenRouterTranslator.DEFAULT_TARGET_LANGUAGE,
 )
 
 @Singleton
@@ -50,6 +60,8 @@ class CaptionSessionController @Inject constructor(
     private val elevenLabs: ElevenLabsTranscriptionProvider,
     private val openRouter: OpenRouterTranscriptionProvider,
     private val selector: TranscriptionProviderSelector,
+    private val apiKeyRepository: ApiKeyRepository,
+    private val translator: OpenRouterTranslator,
 ) {
     private val _state = MutableStateFlow(LiveCaptionState())
     val state: StateFlow<LiveCaptionState> = _state.asStateFlow()
@@ -57,6 +69,9 @@ class CaptionSessionController @Inject constructor(
     private val sessionRef = AtomicReference<StreamingTranscriptionSession?>(null)
     private val speakerMapper = SpeakerIdMapper()
     private var job: Job? = null
+    private val translationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val translationMutex = Mutex()
+    private val recentPairs = ArrayDeque<Pair<String, String>>()
 
     fun start(
         scope: CoroutineScope,
@@ -66,6 +81,7 @@ class CaptionSessionController @Inject constructor(
         if (job?.isActive == true) return
         job = scope.launch {
             speakerMapper.reset()
+            recentPairs.clear()
             _state.update {
                 it.copy(
                     status = CaptureStatus.Connecting,
@@ -256,6 +272,7 @@ class CaptionSessionController @Inject constructor(
                             isFinal = false,
                             startedAtMs = existing?.startedAtMs ?: now,
                             updatedAtMs = now,
+                            translation = existing?.translation,
                         ),
                     )
                 }
@@ -263,19 +280,86 @@ class CaptionSessionController @Inject constructor(
 
             is TranscriptionEvent.Final -> {
                 val now = System.currentTimeMillis()
+                var translatedLineId: String? = null
+                var textForTranslation = event.text
                 _state.update { state ->
-                    val line = CaptionLine(
-                        id = state.partial?.id ?: UUID.randomUUID().toString(),
-                        speaker = event.speaker,
-                        text = event.text,
-                        isFinal = true,
-                        startedAtMs = state.partial?.startedAtMs ?: now,
-                        updatedAtMs = now,
+                    val last = state.lines.lastOrNull()
+                    val merge = last != null &&
+                        last.isFinal &&
+                        CaptionLineCoalescer.shouldMerge(
+                            previousSpeaker = last.speaker,
+                            previousText = last.text,
+                            previousUpdatedAtMs = last.updatedAtMs,
+                            nextSpeaker = event.speaker,
+                            nextText = event.text,
+                            nextAtMs = now,
+                        )
+                    if (merge) {
+                        val prev = checkNotNull(last)
+                        val joined = CaptionLineCoalescer.join(prev.text, event.text)
+                        val updated = prev.copy(
+                            text = joined,
+                            updatedAtMs = now,
+                            translation = null, // refresh translation for merged text
+                        )
+                        translatedLineId = updated.id
+                        textForTranslation = joined
+                        state.copy(
+                            partial = null,
+                            lines = state.lines.dropLast(1) + updated,
+                        )
+                    } else {
+                        val line = CaptionLine(
+                            id = state.partial?.id ?: UUID.randomUUID().toString(),
+                            speaker = event.speaker,
+                            text = event.text,
+                            isFinal = true,
+                            startedAtMs = state.partial?.startedAtMs ?: now,
+                            updatedAtMs = now,
+                        )
+                        translatedLineId = line.id
+                        textForTranslation = line.text
+                        state.copy(
+                            partial = null,
+                            lines = (state.lines + line).takeLast(200),
+                        )
+                    }
+                }
+                translatedLineId?.let { enqueueTranslation(it, textForTranslation) }
+            }
+        }
+    }
+
+    private fun enqueueTranslation(lineId: String, text: String) {
+        if (text.isBlank()) return
+        translationScope.launch {
+            translationMutex.withLock {
+                val openRouterKey = apiKeyRepository.key(ApiProvider.OPENROUTER).first()
+                if (openRouterKey.isNullOrBlank()) return@withLock
+                val target = _state.value.targetLanguage
+                runCatching {
+                    translator.translate(
+                        apiKey = openRouterKey,
+                        request = TranslationRequest(
+                            text = text,
+                            targetLanguage = target,
+                            priorPairs = recentPairs.toList(),
+                        ),
                     )
-                    state.copy(
-                        partial = null,
-                        lines = (state.lines + line).takeLast(200),
-                    )
+                }.onSuccess { result ->
+                    recentPairs.addLast(text to result.translatedText)
+                    while (recentPairs.size > 8) recentPairs.removeFirst()
+                    _state.update { state ->
+                        state.copy(
+                            lines = state.lines.map { line ->
+                                if (line.id == lineId) {
+                                    line.copy(translation = result.translatedText)
+                                } else {
+                                    line
+                                }
+                            },
+                        )
+                    }
                 }
             }
         }
