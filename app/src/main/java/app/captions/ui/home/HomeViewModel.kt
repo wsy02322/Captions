@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.captions.data.keys.ApiKeyRepository
 import app.captions.data.keys.ApiProvider
+import app.captions.pipeline.TranscriptionProviderSelector
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -17,8 +18,13 @@ data class HomeUiState(
     val hasDeepgramKey: Boolean = false,
     val hasElevenLabsKey: Boolean = false,
 ) {
-    val canStartLive: Boolean get() = hasDeepgramKey
-    val ready: Boolean get() = hasOpenRouterKey || hasDeepgramKey
+    val canStartLive: Boolean
+        get() = TranscriptionProviderSelector.canStart(
+            hasDeepgram = hasDeepgramKey,
+            hasElevenLabs = hasElevenLabsKey,
+            hasOpenRouter = hasOpenRouterKey,
+        )
+    val ready: Boolean get() = canStartLive
 }
 
 @HiltViewModel

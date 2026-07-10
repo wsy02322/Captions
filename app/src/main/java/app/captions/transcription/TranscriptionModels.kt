@@ -45,3 +45,38 @@ interface TranscriptionProvider {
         onEvent: (TranscriptionEvent) -> Unit,
     ): StreamingTranscriptionSession
 }
+
+/** Context carried across batch STT chunks for glossary + speaker continuity. */
+data class TranscriptionContext(
+    val priorText: String = "",
+    val glossary: List<String> = emptyList(),
+    val speakerDescriptions: Map<Int, String> = emptyMap(),
+)
+
+data class TranscriptionSegment(
+    val speaker: Int,
+    val lang: String? = null,
+    val text: String,
+    val words: List<TranscriptionWord> = emptyList(),
+)
+
+data class TranscriptionResult(
+    val segments: List<TranscriptionSegment>,
+    val speakerDescriptions: Map<Int, String> = emptyMap(),
+)
+
+/** Batch (chunked WAV) transcription — used by ElevenLabs Scribe and OpenRouter multimodal. */
+interface BatchTranscriptionProvider {
+    val displayName: String
+    suspend fun transcribe(
+        apiKey: String,
+        wav: ByteArray,
+        context: TranscriptionContext = TranscriptionContext(),
+    ): TranscriptionResult
+}
+
+enum class SelectedProviderKind {
+    DEEPGRAM_STREAMING,
+    ELEVENLABS_BATCH,
+    OPENROUTER_BATCH,
+}

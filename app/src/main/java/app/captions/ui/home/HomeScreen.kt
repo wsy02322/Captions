@@ -91,8 +91,7 @@ fun HomeContent(
                         text = stringResource(
                             when {
                                 uiState.canStartLive -> R.string.home_ready
-                                uiState.hasOpenRouterKey -> R.string.home_need_deepgram
-                                else -> R.string.home_setup_needed
+                                else -> R.string.home_need_provider
                             },
                         ),
                         style = MaterialTheme.typography.bodyMedium,
