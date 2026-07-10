@@ -31,6 +31,15 @@
     <string name="settings_hide_key">Hide key</string>
     <string name="back">Back</string>
 
+    <string name="settings_models">Models</string>
+    <string name="settings_translation_model">Translation model</string>
+    <string name="settings_translation_model_desc">Used for live subtitle translation via OpenRouter. Default is highest-accuracy Gemini 3.1 Pro.</string>
+    <string name="settings_openrouter_stt_model">OpenRouter transcription fallback</string>
+    <string name="settings_openrouter_stt_model_desc">Used when no Deepgram or ElevenLabs key is set. Requires an audio-capable multimodal model.</string>
+    <string name="settings_models_loading">Refreshing model list…</string>
+    <string name="settings_models_error">Could not refresh models: %1$s</string>
+    <string name="settings_model_custom_saved">Previously selected model</string>
+
     <string name="live_title">Live captions</string>
     <string name="live_empty">Tap start. Speakers are shown by color only. Translations appear under each line when an OpenRouter key is set.</string>
     <string name="live_source_mic">Microphone</string>

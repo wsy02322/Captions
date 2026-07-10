@@ -80,6 +80,8 @@ class ScreenshotTest {
                     ),
                     onKeyChanged = { _, _ -> },
                     onVerify = {},
+                    onTranslationModelSelected = {},
+                    onOpenRouterSttModelSelected = {},
                     onBack = {},
                 )
             }
@@ -110,6 +112,8 @@ class ScreenshotTest {
                     ),
                     onKeyChanged = { _, _ -> },
                     onVerify = {},
+                    onTranslationModelSelected = {},
+                    onOpenRouterSttModelSelected = {},
                     onBack = {},
                 )
             }

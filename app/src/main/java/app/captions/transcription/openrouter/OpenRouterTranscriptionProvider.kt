@@ -4,6 +4,7 @@ import app.captions.transcription.BatchTranscriptionProvider
 import app.captions.transcription.TranscriptionContext
 import app.captions.transcription.TranscriptionResult
 import app.captions.transcription.TranscriptionSegment
+import app.captions.providers.openrouter.OpenRouterModels
 import app.captions.transcription.TranscriptionWord
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -36,9 +37,14 @@ class OpenRouterTranscriptionProvider @Inject constructor(
         apiKey: String,
         wav: ByteArray,
         context: TranscriptionContext,
+        model: String?,
     ): TranscriptionResult {
         val audioB64 = Base64.getEncoder().encodeToString(wav)
-        val payload = buildRequestJson(audioB64, context)
+        val payload = buildRequestJson(
+            audioB64,
+            context,
+            model ?: OpenRouterModels.DEFAULT_STT,
+        )
         val request = Request.Builder()
             .url(baseUrl.resolve("api/v1/chat/completions")!!)
             .header("Authorization", "Bearer $apiKey")
@@ -57,7 +63,6 @@ class OpenRouterTranscriptionProvider @Inject constructor(
     }
 
     companion object {
-        const val DEFAULT_MODEL = "google/gemini-3.1-pro-preview"
         private val JSON = "application/json; charset=utf-8".toMediaType()
 
         fun buildSystemPrompt(context: TranscriptionContext): String = buildString {
@@ -83,9 +88,13 @@ class OpenRouterTranscriptionProvider @Inject constructor(
             }
         }
 
-        fun buildRequestJson(audioB64: String, context: TranscriptionContext): JsonObject =
+        fun buildRequestJson(
+            audioB64: String,
+            context: TranscriptionContext,
+            model: String = OpenRouterModels.DEFAULT_STT,
+        ): JsonObject =
             buildJsonObject {
-                put("model", DEFAULT_MODEL)
+                put("model", model)
                 put("temperature", 0.0)
                 put(
                     "messages",

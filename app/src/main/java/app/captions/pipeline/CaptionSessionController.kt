@@ -8,6 +8,7 @@ import app.captions.audio.PlaybackCapture
 import app.captions.audio.WavEncoder
 import app.captions.data.keys.ApiKeyRepository
 import app.captions.data.keys.ApiProvider
+import app.captions.data.settings.ModelPreferencesRepository
 import app.captions.transcription.BatchTranscriptionProvider
 import app.captions.transcription.CaptionLine
 import app.captions.transcription.SelectedProviderKind
@@ -61,6 +62,7 @@ class CaptionSessionController @Inject constructor(
     private val openRouter: OpenRouterTranscriptionProvider,
     private val selector: TranscriptionProviderSelector,
     private val apiKeyRepository: ApiKeyRepository,
+    private val modelPreferences: ModelPreferencesRepository,
     private val translator: OpenRouterTranslator,
 ) {
     private val _state = MutableStateFlow(LiveCaptionState())
@@ -195,6 +197,7 @@ class CaptionSessionController @Inject constructor(
         val vad = EnergyVadSegmenter()
         var priorText = ""
         var speakerDescriptions = emptyMap<Int, String>()
+        val sttModel = modelPreferences.openRouterSttModel.first()
 
         suspend fun processPcm(pcm: ByteArray) {
             if (pcm.isEmpty()) return
@@ -206,6 +209,7 @@ class CaptionSessionController @Inject constructor(
                     priorText = priorText,
                     speakerDescriptions = speakerDescriptions,
                 ),
+                model = sttModel,
             )
             emitBatchResult(result)
             if (result.speakerDescriptions.isNotEmpty()) {
@@ -337,6 +341,7 @@ class CaptionSessionController @Inject constructor(
                 val openRouterKey = apiKeyRepository.key(ApiProvider.OPENROUTER).first()
                 if (openRouterKey.isNullOrBlank()) return@withLock
                 val target = _state.value.targetLanguage
+                val translationModel = modelPreferences.translationModel.first()
                 runCatching {
                     translator.translate(
                         apiKey = openRouterKey,
@@ -345,6 +350,7 @@ class CaptionSessionController @Inject constructor(
                             targetLanguage = target,
                             priorPairs = recentPairs.toList(),
                         ),
+                        model = translationModel,
                     )
                 }.onSuccess { result ->
                     recentPairs.addLast(text to result.translatedText)

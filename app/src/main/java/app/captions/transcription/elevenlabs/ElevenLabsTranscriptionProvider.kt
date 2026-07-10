@@ -32,6 +32,7 @@ class ElevenLabsTranscriptionProvider @Inject constructor(
         apiKey: String,
         wav: ByteArray,
         context: TranscriptionContext,
+        model: String?,
     ): TranscriptionResult {
         val url = baseUrl.resolve("v1/speech-to-text")!!
         val bodyBuilder = MultipartBody.Builder()
