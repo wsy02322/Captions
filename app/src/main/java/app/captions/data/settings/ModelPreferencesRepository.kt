@@ -16,23 +16,35 @@ class ModelPreferencesRepository @Inject constructor(
 ) {
     val translationModel: Flow<String> =
         dataStore.data.map { prefs ->
-            prefs[Keys.TRANSLATION_MODEL] ?: OpenRouterModels.DEFAULT_TRANSLATION
+            prefs[Keys.TRANSLATION_MODEL]?.takeIf { it.isNotBlank() }
+                ?: OpenRouterModels.DEFAULT_TRANSLATION
         }
 
     val openRouterSttModel: Flow<String> =
         dataStore.data.map { prefs ->
-            prefs[Keys.OPENROUTER_STT_MODEL] ?: OpenRouterModels.DEFAULT_STT
+            prefs[Keys.OPENROUTER_STT_MODEL]?.takeIf { it.isNotBlank() }
+                ?: OpenRouterModels.DEFAULT_STT
         }
 
     suspend fun setTranslationModel(model: String) {
+        val trimmed = model.trim()
         dataStore.edit { prefs ->
-            prefs[Keys.TRANSLATION_MODEL] = model.trim()
+            if (trimmed.isEmpty()) {
+                prefs.remove(Keys.TRANSLATION_MODEL)
+            } else {
+                prefs[Keys.TRANSLATION_MODEL] = trimmed
+            }
         }
     }
 
     suspend fun setOpenRouterSttModel(model: String) {
+        val trimmed = model.trim()
         dataStore.edit { prefs ->
-            prefs[Keys.OPENROUTER_STT_MODEL] = model.trim()
+            if (trimmed.isEmpty()) {
+                prefs.remove(Keys.OPENROUTER_STT_MODEL)
+            } else {
+                prefs[Keys.OPENROUTER_STT_MODEL] = trimmed
+            }
         }
     }
 

@@ -52,4 +52,25 @@ class ModelPreferencesRepositoryTest {
         assertEquals("anthropic/claude-sonnet-4.6", repository.translationModel.first())
         assertEquals("google/gemini-3.5-flash", repository.openRouterSttModel.first())
     }
+
+    @Test
+    fun `persists arbitrary custom model ids typed by user`() = runTest {
+        repository.setTranslationModel("  meta-llama/llama-4-maverick  ")
+        repository.setOpenRouterSttModel("openai/gpt-4o-audio-preview")
+
+        assertEquals("meta-llama/llama-4-maverick", repository.translationModel.first())
+        assertEquals("openai/gpt-4o-audio-preview", repository.openRouterSttModel.first())
+    }
+
+    @Test
+    fun `blank model input restores factory defaults`() = runTest {
+        repository.setTranslationModel("anthropic/claude-opus-4.7")
+        repository.setOpenRouterSttModel("google/gemini-3.5-flash")
+
+        repository.setTranslationModel("   ")
+        repository.setOpenRouterSttModel("")
+
+        assertEquals(OpenRouterModels.DEFAULT_TRANSLATION, repository.translationModel.first())
+        assertEquals(OpenRouterModels.DEFAULT_STT, repository.openRouterSttModel.first())
+    }
 }

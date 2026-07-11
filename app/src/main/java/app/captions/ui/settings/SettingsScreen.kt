@@ -27,6 +27,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -162,6 +163,7 @@ fun SettingsContent(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ModelSelectionCard(
     title: String,
@@ -172,14 +174,10 @@ private fun ModelSelectionCard(
     error: String?,
     onModelSelected: (String) -> Unit,
 ) {
-    val allOptions = if (options.any { it.id == selectedModelId }) {
-        options
-    } else {
-        options + ModelOption(
-            id = selectedModelId,
-            label = selectedModelId,
-            description = stringResource(R.string.settings_model_custom_saved),
-        )
+    val knownSelected = options.any { it.id == selectedModelId }
+    var customExpanded by rememberSaveable(title) { mutableStateOf(!knownSelected) }
+    var customText by rememberSaveable(title) {
+        mutableStateOf(if (knownSelected) "" else selectedModelId)
     }
 
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
@@ -192,21 +190,24 @@ private fun ModelSelectionCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(12.dp))
-            Column(Modifier.selectableGroup()) {
-                allOptions.forEach { option ->
+            Column(modifier = Modifier.selectableGroup()) {
+                options.forEach { option ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .selectable(
-                                selected = option.id == selectedModelId,
-                                onClick = { onModelSelected(option.id) },
+                                selected = option.id == selectedModelId && !customExpanded,
+                                onClick = {
+                                    customExpanded = false
+                                    onModelSelected(option.id)
+                                },
                                 role = Role.RadioButton,
                             )
                             .padding(vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         RadioButton(
-                            selected = option.id == selectedModelId,
+                            selected = option.id == selectedModelId && !customExpanded,
                             onClick = null,
                         )
                         Spacer(Modifier.width(8.dp))
@@ -220,6 +221,35 @@ private fun ModelSelectionCard(
                         }
                     }
                 }
+            }
+            Spacer(Modifier.height(8.dp))
+            FilterChip(
+                selected = !knownSelected || customExpanded,
+                onClick = { customExpanded = !customExpanded },
+                label = { Text(stringResource(R.string.settings_custom_model)) },
+            )
+            if (customExpanded || !knownSelected) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = stringResource(R.string.settings_custom_model_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = customText,
+                    onValueChange = { value ->
+                        customText = value
+                        val trimmed = value.trim()
+                        if (trimmed.isNotEmpty()) {
+                            onModelSelected(trimmed)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.settings_custom_model)) },
+                    placeholder = { Text(stringResource(R.string.settings_custom_model_hint)) },
+                )
             }
             if (loading) {
                 Spacer(Modifier.height(8.dp))
