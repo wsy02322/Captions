@@ -25,14 +25,24 @@ class ModelPreferencesRepository @Inject constructor(
         }
 
     suspend fun setTranslationModel(model: String) {
+        val trimmed = model.trim()
         dataStore.edit { prefs ->
-            prefs[Keys.TRANSLATION_MODEL] = model.trim()
+            if (trimmed.isEmpty()) {
+                prefs.remove(Keys.TRANSLATION_MODEL)
+            } else {
+                prefs[Keys.TRANSLATION_MODEL] = trimmed
+            }
         }
     }
 
     suspend fun setOpenRouterSttModel(model: String) {
+        val trimmed = model.trim()
         dataStore.edit { prefs ->
-            prefs[Keys.OPENROUTER_STT_MODEL] = model.trim()
+            if (trimmed.isEmpty()) {
+                prefs.remove(Keys.OPENROUTER_STT_MODEL)
+            } else {
+                prefs[Keys.OPENROUTER_STT_MODEL] = trimmed
+            }
         }
     }
 

@@ -52,4 +52,16 @@ class ModelPreferencesRepositoryTest {
         assertEquals("anthropic/claude-sonnet-4.6", repository.translationModel.first())
         assertEquals("google/gemini-3.5-flash", repository.openRouterSttModel.first())
     }
+
+    @Test
+    fun `clears custom model back to default when empty`() = runTest {
+        repository.setTranslationModel("custom/provider-model")
+        repository.setOpenRouterSttModel("custom/audio-model")
+
+        repository.setTranslationModel("")
+        repository.setOpenRouterSttModel("  ")
+
+        assertEquals(OpenRouterModels.DEFAULT_TRANSLATION, repository.translationModel.first())
+        assertEquals(OpenRouterModels.DEFAULT_STT, repository.openRouterSttModel.first())
+    }
 }

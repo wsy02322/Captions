@@ -39,6 +39,8 @@
     <string name="settings_models_loading">Refreshing model list…</string>
     <string name="settings_models_error">Could not refresh models: %1$s</string>
     <string name="settings_model_custom_saved">Previously selected model</string>
+    <string name="settings_custom_model">Custom model</string>
+    <string name="settings_custom_model_hint">provider/model-id</string>
 
     <string name="live_title">Live captions</string>
     <string name="live_empty">Tap start. Speakers are shown by color only. Translations appear under each line when an OpenRouter key is set.</string>
