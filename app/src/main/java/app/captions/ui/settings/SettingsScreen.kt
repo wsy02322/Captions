@@ -27,6 +27,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -172,14 +173,10 @@ private fun ModelSelectionCard(
     error: String?,
     onModelSelected: (String) -> Unit,
 ) {
-    val allOptions = if (options.any { it.id == selectedModelId }) {
-        options
-    } else {
-        options + ModelOption(
-            id = selectedModelId,
-            label = selectedModelId,
-            description = stringResource(R.string.settings_model_custom_saved),
-        )
+    val knownSelected = options.any { it.id == selectedModelId }
+    var customExpanded by rememberSaveable { mutableStateOf(false) }
+    var customText by rememberSaveable(selectedModelId) {
+        mutableStateOf(if (knownSelected) "" else selectedModelId)
     }
 
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
@@ -193,13 +190,16 @@ private fun ModelSelectionCard(
             )
             Spacer(Modifier.height(12.dp))
             Column(Modifier.selectableGroup()) {
-                allOptions.forEach { option ->
+                options.forEach { option ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .selectable(
                                 selected = option.id == selectedModelId,
-                                onClick = { onModelSelected(option.id) },
+                                onClick = {
+                                    customExpanded = false
+                                    onModelSelected(option.id)
+                                },
                                 role = Role.RadioButton,
                             )
                             .padding(vertical = 6.dp),
@@ -220,6 +220,26 @@ private fun ModelSelectionCard(
                         }
                     }
                 }
+            }
+            Spacer(Modifier.height(8.dp))
+            FilterChip(
+                selected = !knownSelected || customExpanded,
+                onClick = { customExpanded = !customExpanded },
+                label = { Text(stringResource(R.string.settings_custom_model)) },
+            )
+            if (customExpanded || !knownSelected) {
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = customText,
+                    onValueChange = {
+                        customText = it
+                        if (it.isNotBlank()) onModelSelected(it.trim())
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    placeholder = { Text(stringResource(R.string.settings_custom_model_hint)) },
+                    label = { Text(stringResource(R.string.settings_custom_model)) },
+                )
             }
             if (loading) {
                 Spacer(Modifier.height(8.dp))
