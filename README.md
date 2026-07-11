@@ -1,13 +1,19 @@
 # Captions
 
-Live transcription & translation for Android 12+, driven by your own API keys.
+Android 12+ 实时转写与翻译，由用户自备 API Key 驱动。
 
-- **Transcription**: ElevenLabs Scribe v2 (default, acoustic speaker diarization) with OpenRouter multimodal fallback
-- **Translation**: OpenRouter (Gemini 3.1 Pro default)
-- **Speakers**: distinguished by color only — no text labels
-- **Audio sources**: microphone, or other apps via AudioPlaybackCapture
+**核心原则**：转写与翻译准确率优先；功能与 UI 极简；音频输入选择可靠。
 
-See [PLAN.md](PLAN.md) for the full technical plan.
+| 能力 | Provider |
+| --- | --- |
+| **转写**（二选一） | Deepgram（默认 `nova-3`，流式）或 ElevenLabs（默认 `scribe_v2`，批量） |
+| **翻译** | OpenRouter（默认 `google/gemini-3.1-pro-preview`） |
+| **说话人** | 仅用颜色区分，无文字标签 |
+| **音频** | 麦克风，或应用播放音频（AudioPlaybackCapture） |
+
+转写与翻译 model 均有默认值，可在设置中自定义 model name。
+
+详见 [PLAN.md](PLAN.md)。
 
 ## Build
 
