@@ -121,4 +121,30 @@ class ScreenshotTest {
         composeRule.onRoot()
             .captureRoboImage("build/reports/screenshots/settings_network_error.png")
     }
+
+    @Test
+    fun settingsScreen_customModelInput() {
+        composeRule.setContent {
+            CaptionsTheme {
+                SettingsContent(
+                    uiState = SettingsUiState(
+                        loaded = true,
+                        openRouter = KeyFieldState(
+                            text = "sk-or-v1-0123456789abcdef",
+                            status = KeyFieldStatus.VALID,
+                        ),
+                        translationModel = "meta-llama/llama-4-maverick",
+                        openRouterSttModel = "openai/gpt-4o-audio-preview",
+                    ),
+                    onKeyChanged = { _, _ -> },
+                    onVerify = {},
+                    onTranslationModelSelected = {},
+                    onOpenRouterSttModelSelected = {},
+                    onBack = {},
+                )
+            }
+        }
+        composeRule.onRoot()
+            .captureRoboImage("build/reports/screenshots/settings_custom_model.png")
+    }
 }
