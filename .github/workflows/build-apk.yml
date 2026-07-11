@@ -30,12 +30,11 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: |
-            platforms;android-35
-            build-tools;35.0.0
+          # Space-separated; multiline `|` is treated as one package name.
+          packages: 'tools platform-tools platforms;android-35 build-tools;35.0.0'
 
       - name: Configure SDK path
-        run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+        run: echo "sdk.dir=${ANDROID_HOME:-$ANDROID_SDK_ROOT}" > local.properties
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
