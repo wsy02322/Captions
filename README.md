@@ -7,7 +7,7 @@ Live transcription & translation for Android 12+, driven by your own API keys.
 - **Speakers**: distinguished by color only — no text labels
 - **Audio sources**: microphone, or other apps via AudioPlaybackCapture
 
-See [PLAN.md](PLAN.md) for the full technical plan.
+See [AGENT_REBUILD_SPEC.md](AGENT_REBUILD_SPEC.md) for a from-scratch rebuild spec (for agents), and [PLAN.md](PLAN.md) for the full product roadmap.
 
 ## Build
 
