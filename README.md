@@ -1,13 +1,13 @@
 # Captions
 
-Live transcription & translation for Android 12+, driven by your own API keys.
+Android 12+ 实时转写与翻译。准确率优先，功能与显示极简。
 
-- **Transcription**: ElevenLabs Scribe v2 (default, acoustic speaker diarization) with OpenRouter multimodal fallback
-- **Translation**: OpenRouter (Gemini 3.1 Pro default)
-- **Speakers**: distinguished by color only — no text labels
-- **Audio sources**: microphone, or other apps via AudioPlaybackCapture
+- **转写**：Deepgram 或 ElevenLabs（二选一）；默认 model name，可自行输入
+- **翻译**：仅 OpenRouter；默认 model name，可自行输入
+- **显示**：彩色文字区分说话人（无文字标签）；可暂停/继续屏幕滚动
+- **音频**：麦克风，或系统/其他 App 播放捕获（选择与授权流程必须 robust）
 
-See [PLAN.md](PLAN.md) for the full technical plan.
+详见 [PLAN.md](PLAN.md)。
 
 ## Build
 
@@ -16,4 +16,4 @@ See [PLAN.md](PLAN.md) for the full technical plan.
 ./gradlew :app:testDebugUnitTest
 ```
 
-Requires JDK 17+ and Android SDK 35 (`local.properties` with `sdk.dir`).
+需要 JDK 17+ 与 Android SDK 35（`local.properties` 中配置 `sdk.dir`）。
