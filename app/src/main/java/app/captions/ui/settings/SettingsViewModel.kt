@@ -4,8 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.captions.data.keys.ApiKeyRepository
 import app.captions.data.keys.ApiProvider
+import app.captions.data.settings.ModelPreferencesRepository
 import app.captions.providers.KeyValidationResult
 import app.captions.providers.KeyValidator
+import app.captions.providers.openrouter.ModelOption
+import app.captions.providers.openrouter.OpenRouterModelCatalog
+import app.captions.providers.openrouter.OpenRouterModels
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,12 +31,20 @@ data class SettingsUiState(
     val openRouter: KeyFieldState = KeyFieldState(),
     val deepgram: KeyFieldState = KeyFieldState(),
     val elevenLabs: KeyFieldState = KeyFieldState(),
+    val translationModel: String = OpenRouterModels.DEFAULT_TRANSLATION,
+    val openRouterSttModel: String = OpenRouterModels.DEFAULT_STT,
+    val translationOptions: List<ModelOption> = OpenRouterModels.RECOMMENDED_TRANSLATION,
+    val sttOptions: List<ModelOption> = OpenRouterModels.RECOMMENDED_STT,
+    val modelsLoading: Boolean = false,
+    val modelsError: String? = null,
 )
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val repository: ApiKeyRepository,
     private val validator: KeyValidator,
+    private val modelPreferences: ModelPreferencesRepository,
+    private val modelCatalog: OpenRouterModelCatalog,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -45,14 +57,19 @@ class SettingsViewModel @Inject constructor(
             val openRouter = repository.key(ApiProvider.OPENROUTER).first().orEmpty()
             val deepgram = repository.key(ApiProvider.DEEPGRAM).first().orEmpty()
             val elevenLabs = repository.key(ApiProvider.ELEVENLABS).first().orEmpty()
+            val translationModel = modelPreferences.translationModel.first()
+            val sttModel = modelPreferences.openRouterSttModel.first()
             _uiState.update {
                 it.copy(
                     loaded = true,
                     openRouter = KeyFieldState(openRouter),
                     deepgram = KeyFieldState(deepgram),
                     elevenLabs = KeyFieldState(elevenLabs),
+                    translationModel = translationModel,
+                    openRouterSttModel = sttModel,
                 )
             }
+            refreshModelCatalog()
         }
     }
 
@@ -67,6 +84,9 @@ class SettingsViewModel @Inject constructor(
                 } else {
                     current
                 }
+            }
+            if (provider == ApiProvider.OPENROUTER) {
+                refreshModelCatalog()
             }
         }
     }
@@ -86,6 +106,68 @@ class SettingsViewModel @Inject constructor(
                 KeyValidationResult.NETWORK_ERROR -> KeyFieldStatus.NETWORK_ERROR
             }
             updateField(provider) { it.copy(status = status) }
+            if (provider == ApiProvider.OPENROUTER && status == KeyFieldStatus.VALID) {
+                refreshModelCatalog()
+            }
+        }
+    }
+
+    fun onTranslationModelSelected(modelId: String) {
+        _uiState.update { it.copy(translationModel = modelId) }
+        viewModelScope.launch {
+            modelPreferences.setTranslationModel(modelId)
+        }
+    }
+
+    fun onOpenRouterSttModelSelected(modelId: String) {
+        _uiState.update { it.copy(openRouterSttModel = modelId) }
+        viewModelScope.launch {
+            modelPreferences.setOpenRouterSttModel(modelId)
+        }
+    }
+
+    fun refreshModelCatalog() {
+        viewModelScope.launch {
+            val openRouterKey = repository.key(ApiProvider.OPENROUTER).first()?.trim().orEmpty()
+            if (openRouterKey.isEmpty()) {
+                _uiState.update {
+                    it.copy(
+                        translationOptions = OpenRouterModels.RECOMMENDED_TRANSLATION,
+                        sttOptions = OpenRouterModels.RECOMMENDED_STT,
+                        modelsLoading = false,
+                        modelsError = null,
+                    )
+                }
+                return@launch
+            }
+            _uiState.update { it.copy(modelsLoading = true, modelsError = null) }
+            runCatching {
+                val translationIds = modelCatalog.fetchTextModels(openRouterKey)
+                val sttIds = modelCatalog.fetchAudioModels(openRouterKey)
+                _uiState.update { state ->
+                    state.copy(
+                        translationOptions = OpenRouterModels.mergeOptions(
+                            OpenRouterModels.RECOMMENDED_TRANSLATION,
+                            translationIds,
+                        ),
+                        sttOptions = OpenRouterModels.mergeOptions(
+                            OpenRouterModels.RECOMMENDED_STT,
+                            sttIds,
+                        ),
+                        modelsLoading = false,
+                        modelsError = null,
+                    )
+                }
+            }.onFailure { error ->
+                _uiState.update {
+                    it.copy(
+                        translationOptions = OpenRouterModels.RECOMMENDED_TRANSLATION,
+                        sttOptions = OpenRouterModels.RECOMMENDED_STT,
+                        modelsLoading = false,
+                        modelsError = error.message,
+                    )
+                }
+            }
         }
     }
 

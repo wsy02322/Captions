@@ -1,5 +1,6 @@
 package app.captions.translation
 
+import app.captions.providers.openrouter.OpenRouterModels
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonArray
@@ -31,7 +32,11 @@ class OpenRouterTranslator @Inject constructor(
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
-    suspend fun translate(apiKey: String, request: TranslationRequest): TranslationResult {
+    suspend fun translate(
+        apiKey: String,
+        request: TranslationRequest,
+        model: String = OpenRouterModels.DEFAULT_TRANSLATION,
+    ): TranslationResult {
         val system = buildString {
             appendLine("You are a precise subtitle translator.")
             appendLine("Translate the user text into ${request.targetLanguage}.")
@@ -45,7 +50,7 @@ class OpenRouterTranslator @Inject constructor(
             }
         }
         val payload = buildJsonObject {
-            put("model", DEFAULT_MODEL)
+            put("model", model)
             put("temperature", 0.0)
             put(
                 "messages",
@@ -90,7 +95,6 @@ class OpenRouterTranslator @Inject constructor(
     }
 
     companion object {
-        const val DEFAULT_MODEL = "google/gemini-3.1-pro-preview"
         const val DEFAULT_TARGET_LANGUAGE = "Simplified Chinese"
         private val JSON = "application/json; charset=utf-8".toMediaType()
     }

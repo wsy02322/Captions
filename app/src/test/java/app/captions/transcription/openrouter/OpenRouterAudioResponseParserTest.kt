@@ -44,6 +44,12 @@ class OpenRouterAudioResponseParserTest {
         assertTrue(prompt.contains("earlier line"))
         assertTrue(prompt.contains("Captions"))
         assertTrue(prompt.contains("deep voice"))
-        assertNotNull(OpenRouterTranscriptionProvider.buildRequestJson("abc", TranscriptionContext()))
+        assertNotNull(
+            OpenRouterTranscriptionProvider.buildRequestJson(
+                "abc",
+                TranscriptionContext(),
+                "google/gemini-3.5-flash",
+            ),
+        )
     }
 }

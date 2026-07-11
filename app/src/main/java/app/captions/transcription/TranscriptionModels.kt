@@ -73,6 +73,7 @@ interface BatchTranscriptionProvider {
         apiKey: String,
         wav: ByteArray,
         context: TranscriptionContext = TranscriptionContext(),
+        model: String? = null,
     ): TranscriptionResult
 }
 
